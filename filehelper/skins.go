@@ -13,7 +13,7 @@ var ErrFolderNotExist = errors.New("folder not exist")
 //		*Parse ini file and get metadata
 //		*Get sounds path
 
-func (osufolder *OsuFolder) GetSkins() error {
+func (osufolder *Osu) GetSkins() error {
 	if osufolder.SkinsPath == "" {
 		return fmt.Errorf("%w: %s", ErrFolderNotExist, osufolder.SkinsPath)
 	}

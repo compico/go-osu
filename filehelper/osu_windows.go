@@ -1,4 +1,5 @@
 //go:build windows
+// +build windows
 
 package filehelper
 
@@ -9,8 +10,8 @@ import (
 	"golang.org/x/sys/windows/registry"
 )
 
-func (osufolder *OsuFolder) InitGamePathByReg() error {
-	k, err := registry.OpenKey(registry.CLASSES_ROOT, `osu\DefaultIcon`, registry.QUERY_VALUE)
+func (osufolder *Osu) InitGamePathByReg() error {
+	k, err := registry.OpenKey(registry.CLASSES_ROOT, `osustable.Uri.osu\DefaultIcon`, registry.QUERY_VALUE)
 	if err != nil {
 		return fmt.Errorf("cannot open registry key: %w", err)
 	}

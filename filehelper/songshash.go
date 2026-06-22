@@ -4,9 +4,9 @@ import (
 	"github.com/compico/osutools/osu"
 )
 
-func (folder *OsuFolder) DirectorySorting() {
+func (folder *Osu) DirectorySorting() {
 	folder.SongsDirectory = new(SongsDirectory)
-	folder.SongsDirectory.BeatmapsDirectorys = make([]Directory, 0)
+	folder.SongsDirectory.BeatmapsDirectories = make([]Directory, 0)
 
 	for _, dirs := range folder.SongsHash {
 		if len(dirs) < 1 {
@@ -25,6 +25,6 @@ func (folder *OsuFolder) DirectorySorting() {
 			}
 			directory.Directory = append(directory.Directory, folder.DataBase.Beatmaps[i])
 		}
-		folder.SongsDirectory.BeatmapsDirectorys = append(folder.SongsDirectory.BeatmapsDirectorys, directory)
+		folder.SongsDirectory.BeatmapsDirectories = append(folder.SongsDirectory.BeatmapsDirectories, directory)
 	}
 }

@@ -7,7 +7,7 @@ import (
 )
 
 func BenchmarkUnmarshal(b *testing.B) {
-	var fh filehelper.OsuFolder
+	var fh filehelper.Osu
 	if err := fh.InitGamePathByReg(); err != nil {
 		b.Log(err.Error())
 	}

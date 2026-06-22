@@ -2,7 +2,7 @@ package filehelper
 
 import "github.com/compico/osutools/osu"
 
-type OsuFolder struct {
+type Osu struct {
 	DataBase  *osu.OsuDB
 	Skins     OsuSkins
 	SongsHash map[int32]map[int32]int
@@ -13,7 +13,7 @@ type OsuFolder struct {
 }
 
 type SongsDirectory struct {
-	BeatmapsDirectorys []Directory
+	BeatmapsDirectories []Directory
 }
 
 type Directory struct {

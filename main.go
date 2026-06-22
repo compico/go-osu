@@ -10,15 +10,20 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
-var fh filehelper.OsuFolder
+var fh filehelper.Osu
 
 func main() {
+	fmt.Println("Starting...")
 	if err := fh.InitGamePathByReg(); err != nil {
 		log.Fatalln(err)
 	}
+
+	fmt.Printf("Found path: %s\n", fh.GamePath)
+
 	if err := fh.ReadOsudbFile(); err != nil {
 		log.Fatalln(err)
 	}
+	fmt.Printf("osudb parsed!\n", fh.GamePath)
 
 	r := httprouter.New()
 	server := webserver.NewServer(":8000", r)

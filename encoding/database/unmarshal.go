@@ -1,186 +1,218 @@
 package database
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
-	"io/ioutil"
 	"math"
+	"os"
 
-	"github.com/bnch/uleb128"
 	"github.com/compico/osutools/osu"
 )
 
-var (
-	scanner int
-	target  []byte
-)
+type decoder struct {
+	pos  int
+	data []byte
+}
 
-func Unmarshal(filepath string, database *osu.OsuDB) (err error) {
-	scanner = 0
-	target, err = ioutil.ReadFile(filepath)
+func newDecoder(data []byte) *decoder {
+	return &decoder{
+		data: data,
+	}
+}
+
+func Unmarshal(filepath string, database *osu.OsuDB) error {
+	data, err := os.ReadFile(filepath)
 	if err != nil {
 		return fmt.Errorf("cannot read file: %w", err)
 	}
-	database.Version = decodeInt()
-	database.FolderCount = decodeInt()
-	database.AccountUnlocked = decodeBoolean()
-	database.DateUnlocked = decodeDouble()
-	database.PlayerName = decodeString()
-	database.NumberOfBeatmaps = decodeInt()
-	for i := 0; i < int(database.NumberOfBeatmaps); i++ {
-		bm := new(osu.Beatmap)
-		bm.ArtistName = decodeString()
-		bm.ArtistNameUni = decodeString()
-		bm.SongTitle = decodeString()
-		bm.SongTitleUni = decodeString()
-		bm.CreatorName = decodeString()
-		bm.Difficulty = decodeString()
-		bm.AudioFileName = decodeString()
-		bm.MD5Hash = decodeString()
-		bm.NameOfTheOsuFile = decodeString()
-		bm.RankedStatus = decodeByte()
-		bm.NumberOfHitcircles = decodeShort()
-		bm.NumberOfSliders = decodeShort()
-		bm.NumberOfSpinners = decodeShort()
-		bm.LastModification = decodeLong()
-		bm.ApproachRate = decodeSingle()
-		bm.CircleSize = decodeSingle()
-		bm.HPDrain = decodeSingle()
-		bm.OverallDifficulty = decodeSingle()
-		bm.SliderVelocity = decodeDouble()
-		bm.OsuModeStars = decodePairsIntDouble()
-		bm.TaikoModeStars = decodePairsIntDouble()
-		bm.CTBModeStars = decodePairsIntDouble()
-		bm.ManiaModeStars = decodePairsIntDouble()
-		bm.DrainTime = decodeInt()
-		bm.TotalTime = decodeInt()
-		bm.PreviewAudioTime = decodeInt()
-		bm.TimingPoints = decodeTimingPoints()
-		bm.DifficultyID = decodeInt()
-		bm.BeatmapID = decodeInt()
-		bm.ThreadID = decodeInt()
-		bm.GradeAchievedOsu = decodeByte()
-		bm.GradeAchievedTaiko = decodeByte()
-		bm.GradeAchievedCTB = decodeByte()
-		bm.GradeAchievedMania = decodeByte()
-		bm.LocalOffset = decodeShort()
-		bm.StackLeniency = decodeSingle()
-		bm.Mode = decodeByte()
-		bm.SongSource = decodeString()
-		bm.SongTags = decodeString()
-		bm.OnlineOffset = decodeShort()
-		bm.TitleFont = decodeString()
-		bm.Unplayed = decodeBoolean()
-		bm.LastPlay = decodeLong()
-		bm.IsOsz2 = decodeBoolean()
-		bm.FolderName = decodeString()
-		bm.LastCheckedOsuRepo = decodeLong()
-		bm.IgnoreSound = decodeBoolean()
-		bm.IgnoreSkin = decodeBoolean()
-		bm.DisableStoryboard = decodeBoolean()
-		bm.DisableVideo = decodeBoolean()
-		bm.VisualOverride = decodeBoolean()
-		bm.LastModificationTime = decodeInt()
-		bm.ManiaScrollSpeed = decodeByte()
-		database.Beatmaps = append(database.Beatmaps, *bm)
+
+	d := newDecoder(data)
+
+	database.Version = d.decodeInt()
+	database.FolderCount = d.decodeInt()
+	database.AccountUnlocked = d.decodeBoolean()
+	database.DateUnlocked = d.decodeDouble()
+	database.PlayerName = d.decodeString()
+	database.NumberOfBeatmaps = d.decodeInt()
+	database.Beatmaps = make([]osu.Beatmap, database.NumberOfBeatmaps)
+
+	for i := range database.Beatmaps {
+		bm := &database.Beatmaps[i]
+
+		bm.ArtistName = d.decodeString()
+		bm.ArtistNameUni = d.decodeString()
+		bm.SongTitle = d.decodeString()
+		bm.SongTitleUni = d.decodeString()
+		bm.CreatorName = d.decodeString()
+		bm.Difficulty = d.decodeString()
+		bm.AudioFileName = d.decodeString()
+		bm.MD5Hash = d.decodeString()
+		bm.NameOfTheOsuFile = d.decodeString()
+		bm.RankedStatus = d.decodeByte()
+		bm.NumberOfHitcircles = d.decodeShort()
+		bm.NumberOfSliders = d.decodeShort()
+		bm.NumberOfSpinners = d.decodeShort()
+		bm.LastModification = d.decodeLong()
+		bm.ApproachRate = d.decodeSingle()
+		bm.CircleSize = d.decodeSingle()
+		bm.HPDrain = d.decodeSingle()
+		bm.OverallDifficulty = d.decodeSingle()
+		bm.SliderVelocity = d.decodeDouble()
+		bm.OsuModeStars = d.decodePairsIntFloat()
+		bm.TaikoModeStars = d.decodePairsIntFloat()
+		bm.CTBModeStars = d.decodePairsIntFloat()
+		bm.ManiaModeStars = d.decodePairsIntFloat()
+		bm.DrainTime = d.decodeInt()
+		bm.TotalTime = d.decodeInt()
+		bm.PreviewAudioTime = d.decodeInt()
+		bm.TimingPoints = d.decodeTimingPoints()
+		bm.DifficultyID = d.decodeInt()
+		bm.BeatmapID = d.decodeInt()
+		bm.ThreadID = d.decodeInt()
+		bm.GradeAchievedOsu = d.decodeByte()
+		bm.GradeAchievedTaiko = d.decodeByte()
+		bm.GradeAchievedCTB = d.decodeByte()
+		bm.GradeAchievedMania = d.decodeByte()
+		bm.LocalOffset = d.decodeShort()
+		bm.StackLeniency = d.decodeSingle()
+		bm.Mode = d.decodeByte()
+		bm.SongSource = d.decodeString()
+		bm.SongTags = d.decodeString()
+		bm.OnlineOffset = d.decodeShort()
+		bm.TitleFont = d.decodeString()
+		bm.Unplayed = d.decodeBoolean()
+		bm.LastPlay = d.decodeLong()
+		bm.IsOsz2 = d.decodeBoolean()
+		bm.FolderName = d.decodeString()
+		bm.LastCheckedOsuRepo = d.decodeLong()
+		bm.IgnoreSound = d.decodeBoolean()
+		bm.IgnoreSkin = d.decodeBoolean()
+		bm.DisableStoryboard = d.decodeBoolean()
+		bm.DisableVideo = d.decodeBoolean()
+		bm.VisualOverride = d.decodeBoolean()
+		bm.LastModificationTime = d.decodeInt()
+		bm.ManiaScrollSpeed = d.decodeByte()
 	}
-	database.Permissions = decodeInt()
+
+	database.Permissions = d.decodeInt()
+
 	return nil
 }
 
-func decodeByte() byte {
-	x := target[scanner]
-	scanner++
+func (d *decoder) decodeByte() byte {
+	x := d.data[d.pos]
+	d.pos++
 	return x
 }
 
-func decodeShort() int16 {
-	x := int16(binary.LittleEndian.Uint16((target[scanner : scanner+2])))
-	scanner += 2
+func (d *decoder) decodeBoolean() bool {
+	return d.decodeByte() == 1
+}
+
+func (d *decoder) decodeShort() int16 {
+	x := int16(binary.LittleEndian.Uint16(d.data[d.pos:]))
+	d.pos += 2
 	return x
 }
 
-func decodeInt() int32 {
-	x := int32(binary.LittleEndian.Uint32((target[scanner : scanner+4])))
-	scanner += 4
+func (d *decoder) decodeInt() int32 {
+	x := int32(binary.LittleEndian.Uint32(d.data[d.pos:]))
+	d.pos += 4
 	return x
 }
 
-func decodeLong() int64 {
-	x := int64(binary.LittleEndian.Uint64((target[scanner : scanner+8])))
-	scanner += 8
+func (d *decoder) decodeLong() int64 {
+	x := int64(binary.LittleEndian.Uint64(d.data[d.pos:]))
+	d.pos += 8
 	return x
 }
 
-func decodeSingle() float32 {
-	x := math.Float32frombits(binary.LittleEndian.Uint32(target[scanner : scanner+4]))
-	scanner += 4
+func (d *decoder) decodeSingle() float32 {
+	x := math.Float32frombits(binary.LittleEndian.Uint32(d.data[d.pos:]))
+	d.pos += 4
 	return x
 }
 
-func decodeDouble() float64 {
-	x := math.Float64frombits(binary.LittleEndian.Uint64(target[scanner : scanner+8]))
-	scanner += 8
+func (d *decoder) decodeDouble() float64 {
+	x := math.Float64frombits(binary.LittleEndian.Uint64(d.data[d.pos:]))
+	d.pos += 8
 	return x
 }
 
-func decodeBoolean() bool {
-	x := target[scanner]
-	scanner++
-	return x == 0x01
+func (d *decoder) decodeULEB128() uint64 {
+	var result uint64
+	var shift uint
 
-}
-
-func decodeString() string {
-	switch target[scanner] {
-	case 0x0b:
-		scanner++
-		sizebytes := uleb128.UnmarshalReader(bytes.NewReader([]byte{target[scanner]}))
-		if sizebytes < int(target[scanner]) {
-			sizebytes = uleb128.UnmarshalReader(bytes.NewReader([]byte{target[scanner], target[scanner+1]}))
-			scanner++
+	for {
+		b := d.decodeByte()
+		result |= uint64(b&0x7F) << shift
+		if b&0x80 == 0 {
+			break
 		}
-		scanner++
-		x := string(target[scanner : scanner+sizebytes])
-		scanner += sizebytes
-		return x
+		shift += 7
 	}
-	scanner++
-	return ""
+
+	return result
 }
 
-func decodeTimingPoints() []osu.TimingPoint {
-	c := int(decodeInt())
-	tp := make([]osu.TimingPoint, 0)
-	for i := 0; i < c; i++ {
-		tp = append(tp, decodeTimingPoint())
+func (d *decoder) decodeString() string {
+	if d.decodeByte() != 0x0b {
+		return ""
 	}
+
+	size := int(d.decodeULEB128())
+	s := string(d.data[d.pos : d.pos+size])
+	d.pos += size
+
+	return s
+}
+
+func (d *decoder) decodeTimingPoints() []osu.TimingPoint {
+	n := int(d.decodeInt())
+	tp := make([]osu.TimingPoint, n)
+
+	for i := range tp {
+		tp[i] = d.decodeTimingPoint()
+	}
+
 	return tp
 }
 
-func decodeTimingPoint() osu.TimingPoint {
-	x := osu.TimingPoint{Todo: target[scanner : scanner+17]}
-	scanner += 17
+func (d *decoder) decodeTimingPoint() osu.TimingPoint {
+	x := osu.TimingPoint{
+		Todo: d.data[d.pos : d.pos+17],
+	}
+	d.pos += 17
 	return x
 }
 
-func decodePairsIntDouble() []osu.PairIntDouble {
-	c := int(decodeInt())
-	pairs := make([]osu.PairIntDouble, 0)
-	for i := 0; i < c; i++ {
-		pairs = append(pairs, decodePairIntDouble())
+func (d *decoder) decodePairIntFloat() osu.PairIntFloat {
+	if d.decodeByte() != 0x08 {
+		return osu.PairIntFloat{}
 	}
-	return pairs
+
+	i := d.decodeInt()
+
+	if d.decodeByte() != 0x0C {
+		return osu.PairIntFloat{}
+	}
+
+	f := math.Float32frombits(binary.LittleEndian.Uint32(d.data[d.pos:]))
+	d.pos += 4
+
+	return osu.PairIntFloat{
+		Int:   i,
+		Float: f,
+	}
 }
 
-func decodePairIntDouble() osu.PairIntDouble {
-	scanner++
-	i := decodeInt()
-	scanner++
-	d := decodeDouble()
-	return osu.PairIntDouble{
-		Int:    i,
-		Double: d,
+func (d *decoder) decodePairsIntFloat() []osu.PairIntFloat {
+	n := int(d.decodeInt())
+	pairs := make([]osu.PairIntFloat, n)
+
+	for i := range pairs {
+		pairs[i] = d.decodePairIntFloat()
 	}
+
+	return pairs
 }

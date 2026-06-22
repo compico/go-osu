@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	"github.com/compico/osutools/encoding/database"
@@ -13,28 +13,29 @@ import (
 
 var ErrUnknownPath = errors.New("Unknown game path.")
 
-func (osufolder *OsuFolder) initSongsPath() {
+func (osufolder *Osu) initSongsPath() {
 	osufolder.SongsPath = filepath.Join(osufolder.GamePath, "Songs")
 }
 
-func (osufolder *OsuFolder) initSkinsPath() {
+func (osufolder *Osu) initSkinsPath() {
 	osufolder.SkinsPath = filepath.Join(osufolder.GamePath, "Skins")
 }
 
-func (osufolder *OsuFolder) ReadOsudbFile() error {
-	osufolder.DataBase = new(osu.OsuDB)
-	osufolder.DataBase.Beatmaps = make([]osu.Beatmap, 0)
+func (osufolder *Osu) ReadOsudbFile() error {
+	osufolder.DataBase = &osu.OsuDB{}
+
 	err := database.Unmarshal(osufolder.GamePath+"/osu!.db", osufolder.DataBase)
 	if err != nil {
 		return fmt.Errorf("cannot decode osu database file: %w", err)
 	}
 	osufolder.hashing()
+
 	return nil
 }
 
-func (osufolder *OsuFolder) JsonToDatabase(file string) error {
+func (osufolder *Osu) JsonToDatabase(file string) error {
 	osufolder.DataBase = new(osu.OsuDB)
-	b, err := ioutil.ReadFile(file)
+	b, err := os.ReadFile(file)
 	if err != nil {
 		return fmt.Errorf("cannot read JSON file: %w", err)
 	}
@@ -42,10 +43,11 @@ func (osufolder *OsuFolder) JsonToDatabase(file string) error {
 	if err = json.Unmarshal(b, osufolder.DataBase); err != nil {
 		return fmt.Errorf("cannot decode JSON input to osu database: %w", err)
 	}
+
 	return err
 }
 
-func (osufolder *OsuFolder) hashing() {
+func (osufolder *Osu) hashing() {
 	osufolder.SongsHash = make(map[int32]map[int32]int)
 	for i := 0; i < len(osufolder.DataBase.Beatmaps); i++ {
 		if len(osufolder.SongsHash[osufolder.DataBase.Beatmaps[i].BeatmapID]) == 0 {

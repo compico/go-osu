@@ -1,15 +1,9 @@
 package osu
 
 type (
-	PairIntDouble struct {
-		// The first bytes is 0x08
-		// follewed by an
-		// 0xFFFF (int32)
-		// then 0x0D, followed by a
-		// 0xFFFFFFFF (float64)
-		// result 0x08FFFF0DFFFFFFFF
-		Double float64
-		Int    int32
+	PairIntFloat struct {
+		Int   int32
+		Float float32
 	}
 	TimingPoint struct {
 		Todo []byte
@@ -30,10 +24,10 @@ type OsuDB struct {
 
 type Beatmap struct {
 	TimingPoints         []TimingPoint
-	OsuModeStars         []PairIntDouble
-	TaikoModeStars       []PairIntDouble
-	CTBModeStars         []PairIntDouble
-	ManiaModeStars       []PairIntDouble
+	OsuModeStars         []PairIntFloat
+	TaikoModeStars       []PairIntFloat
+	CTBModeStars         []PairIntFloat
+	ManiaModeStars       []PairIntFloat
 	ArtistName           string
 	ArtistNameUni        string
 	SongTitle            string
