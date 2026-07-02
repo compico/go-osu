@@ -1,0 +1,369 @@
+/* Global overrides — Bootstrap handles the base styles */
+
+:root {
+    --navbar-height: 56px;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+}
+html, body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
+html,
+body,
+#app {
+    height: 100%;
+}
+
+#app {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+
+/* Smooth transition when switching themes */
+*,
+*::before,
+*::after {
+    transition:
+        background-color 0.2s ease,
+        border-color 0.2s ease,
+        color 0.15s ease;
+}
+
+/* Offset content so it starts below the fixed navbar */
+.main-content {
+    padding-top: var(--navbar-height);
+    box-sizing: border-box;   /* padding не увеличивает высоту сверх 100% */
+    flex: 1 1 0;              /* 0 вместо auto — не растягивается по контенту */
+    min-height: 0;            /* разрешаем shrink ниже content-size */
+    display: flex;            /* передаём flex-контекст вниз к RouterView */
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.main-content > * {
+    flex: 1 1 0;
+    min-height: 0;
+}
+
+.page-scroll {
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Общие токены — не зависят от темы
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+    /* Акцентный розовый (osu! pink) */
+    --osu-pink:          #ff66aa;
+    --osu-pink-subtle:   rgba(255, 102, 170, 0.15);
+    --osu-pink-border:   rgba(255, 102, 170, 0.35);
+    --osu-pink-glow:     rgba(255, 102, 170, 0.25);
+
+    /* Star-rating palette */
+    --osu-star-1: #4fc3f7; /* < 2★  — голубой   */
+    --osu-star-2: #81c784; /* < 3★  — зелёный   */
+    --osu-star-3: #fff176; /* < 4★  — жёлтый    */
+    --osu-star-4: #ffb74d; /* < 5★  — оранжевый */
+    --osu-star-5: #e57373; /* < 6★  — красный   */
+    --osu-star-6: #ce93d8; /* < 7★  — фиолетовый*/
+    --osu-star-7: #b0bec5; /* 7★+   — серый     */
+
+    /* Переопределяем Bootstrap accent через --bs-primary */
+    --bs-primary:          #ff66aa;
+    --bs-primary-rgb:      255, 102, 170;
+    --bs-link-color:       #ff66aa;
+    --bs-link-hover-color: #ff44aa;
+
+    /* Focus ring */
+    --bs-focus-ring-color: rgba(255, 102, 170, 0.3);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DARK THEME  (data-bs-theme="dark")
+   ═══════════════════════════════════════════════════════════════════════════ */
+[data-bs-theme="dark"] {
+    /* ── Фоны ── */
+    --bs-body-bg:             #0d0d1a;
+    --bs-body-bg-rgb:         13, 13, 26;
+    --bs-secondary-bg:        #111122;
+    --bs-tertiary-bg:         #16162e;
+
+    /* ── Текст ── */
+    --bs-body-color:          #e0e0e0;
+    --bs-body-color-rgb:      224, 224, 224;
+    --bs-secondary-color:     #888;
+    --bs-tertiary-color:      #555;
+    --bs-heading-color:       #ffffff;
+
+    /* ── Бордеры ── */
+    --bs-border-color:        #1e1e38;
+    --bs-border-color-translucent: rgba(255,255,255,0.06);
+
+    /* ── Компоненты ── */
+    --bs-card-bg:             #111122;
+    --bs-card-border-color:   #1e1e38;
+    --bs-card-cap-bg:         #16162e;
+
+    --bs-modal-bg:            #111122;
+    --bs-modal-header-border-color: #1e1e38;
+    --bs-modal-footer-border-color: #1e1e38;
+
+    --bs-dropdown-bg:         #16162e;
+    --bs-dropdown-border-color: #1e1e38;
+    --bs-dropdown-link-color: #ccc;
+    --bs-dropdown-link-hover-bg: rgba(255,102,170,0.1);
+    --bs-dropdown-link-hover-color: #fff;
+    --bs-dropdown-link-active-bg: rgba(255,102,170,0.2);
+    --bs-dropdown-link-active-color: #ff66aa;
+
+    --bs-nav-tabs-border-color: #1e1e38;
+    --bs-nav-tabs-link-active-bg: #0d0d1a;
+    --bs-nav-tabs-link-active-color: #ff66aa;
+    --bs-nav-tabs-link-active-border-color: #1e1e38 #1e1e38 #0d0d1a;
+    --bs-nav-link-color: #888;
+    --bs-nav-link-hover-color: #ff66aa;
+
+    --bs-input-bg:            #0d0d1a;
+    --bs-input-border-color:  #252542;
+    --bs-input-color:         #ddd;
+    --bs-input-placeholder-color: #3a3a5a;
+    --bs-input-focus-border-color: rgba(255,102,170,0.5);
+    --bs-input-focus-box-shadow: 0 0 0 0.2rem rgba(255,102,170,0.15);
+
+    --bs-table-bg:            transparent;
+    --bs-table-striped-bg:    rgba(255,255,255,0.02);
+    --bs-table-hover-bg:      rgba(255,102,170,0.05);
+    --bs-table-border-color:  #1e1e38;
+    --bs-table-color:         #ccc;
+
+    --bs-list-group-bg:       #111122;
+    --bs-list-group-border-color: #1e1e38;
+    --bs-list-group-action-hover-bg: rgba(255,102,170,0.08);
+    --bs-list-group-action-active-bg: rgba(255,102,170,0.15);
+    --bs-list-group-active-bg: rgba(255,102,170,0.2);
+    --bs-list-group-active-color: #ff66aa;
+    --bs-list-group-active-border-color: rgba(255,102,170,0.4);
+
+    --bs-badge-color:         #fff;
+
+    --bs-btn-close-filter:    invert(1);
+
+    --bs-code-color:          #ff66aa;
+
+    --bs-pagination-bg:       #111122;
+    --bs-pagination-border-color: #1e1e38;
+    --bs-pagination-color:    #888;
+    --bs-pagination-hover-bg: rgba(255,102,170,0.1);
+    --bs-pagination-hover-color: #ff66aa;
+    --bs-pagination-hover-border-color: rgba(255,102,170,0.3);
+    --bs-pagination-active-bg: rgba(255,102,170,0.25);
+    --bs-pagination-active-color: #ff66aa;
+    --bs-pagination-active-border-color: rgba(255,102,170,0.5);
+    --bs-pagination-disabled-bg: #0d0d1a;
+    --bs-pagination-disabled-color: #333;
+
+    --bs-tooltip-bg:          #1e1e38;
+    --bs-tooltip-color:       #ddd;
+
+    --bs-popover-bg:          #16162e;
+    --bs-popover-border-color: #1e1e38;
+    --bs-popover-header-bg:   #1a1a36;
+    --bs-popover-body-color:  #ccc;
+
+    --bs-progress-bg:         #1a1a30;
+    --bs-progress-bar-bg:     #ff66aa;
+
+    --bs-scrollbar-color:     #252542 transparent;
+
+    /* ── Внутренние переменные плеера ── */
+    --player-bg:              #0d0d1a;
+    --player-sidebar-bg:      #111122;
+    --player-item-hover-bg:   rgba(255,102,170,0.055);
+    --player-item-active-bg:  rgba(255,102,170,0.13);
+    --player-diff-bg:         #0c0c1d;
+    --player-diff-hover-bg:   rgba(255,102,170,0.04);
+    --player-diff-active-bg:  rgba(255,102,170,0.11);
+    --player-thumb-bg:        #181830;
+    --player-thumb-icon-color:#2a2a44;
+    --player-text-primary:    #d8d8d8;
+    --player-text-secondary:  #555;
+    --player-text-meta:       #3a3a5a;
+    --player-border:          #1e1e38;
+    --player-border-inner:    #1a1a32;
+    --player-search-bg:       #0d0d1a;
+    --player-search-border:   #252542;
+    --player-expand-color:    #333;
+    --player-cover-ph-bg:     #1e1e38;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT THEME  (data-bs-theme="light")
+   ═══════════════════════════════════════════════════════════════════════════ */
+[data-bs-theme="light"] {
+    /* ── Фоны ── */
+    --bs-body-bg:             #f5f0f7;
+    --bs-body-bg-rgb:         245, 240, 247;
+    --bs-secondary-bg:        #ede6f4;
+    --bs-tertiary-bg:         #e4dced;
+
+    /* ── Текст ── */
+    --bs-body-color:          #2a1a33;
+    --bs-body-color-rgb:      42, 26, 51;
+    --bs-secondary-color:     #6b5878;
+    --bs-tertiary-color:      #9980aa;
+    --bs-heading-color:       #1a0a22;
+
+    /* ── Бордеры ── */
+    --bs-border-color:        #d8cce5;
+    --bs-border-color-translucent: rgba(42,26,51,0.1);
+
+    /* ── Компоненты ── */
+    --bs-card-bg:             #fff;
+    --bs-card-border-color:   #d8cce5;
+    --bs-card-cap-bg:         #f0eaf8;
+
+    --bs-modal-bg:            #fff;
+    --bs-modal-header-border-color: #d8cce5;
+    --bs-modal-footer-border-color: #d8cce5;
+
+    --bs-dropdown-bg:         #fff;
+    --bs-dropdown-border-color: #d8cce5;
+    --bs-dropdown-link-color: #4a3057;
+    --bs-dropdown-link-hover-bg: rgba(255,102,170,0.08);
+    --bs-dropdown-link-hover-color: #cc0066;
+    --bs-dropdown-link-active-bg: rgba(255,102,170,0.15);
+    --bs-dropdown-link-active-color: #cc0066;
+
+    --bs-nav-link-color:      #6b5878;
+    --bs-nav-link-hover-color: #ff66aa;
+    --bs-nav-tabs-link-active-color: #cc0066;
+
+    --bs-input-bg:            #fff;
+    --bs-input-border-color:  #c8b8d8;
+    --bs-input-color:         #2a1a33;
+    --bs-input-placeholder-color: #b0a0c0;
+    --bs-input-focus-border-color: rgba(255,102,170,0.6);
+    --bs-input-focus-box-shadow: 0 0 0 0.2rem rgba(255,102,170,0.15);
+
+    --bs-table-bg:            transparent;
+    --bs-table-striped-bg:    rgba(255,102,170,0.03);
+    --bs-table-hover-bg:      rgba(255,102,170,0.06);
+    --bs-table-border-color:  #d8cce5;
+    --bs-table-color:         #2a1a33;
+
+    --bs-list-group-bg:       #fff;
+    --bs-list-group-border-color: #d8cce5;
+    --bs-list-group-action-hover-bg: rgba(255,102,170,0.07);
+    --bs-list-group-active-bg: rgba(255,102,170,0.18);
+    --bs-list-group-active-color: #cc0066;
+    --bs-list-group-active-border-color: rgba(255,102,170,0.35);
+
+    --bs-code-color:          #cc0066;
+
+    --bs-pagination-bg:       #fff;
+    --bs-pagination-border-color: #d8cce5;
+    --bs-pagination-color:    #6b5878;
+    --bs-pagination-hover-bg: rgba(255,102,170,0.08);
+    --bs-pagination-hover-color: #cc0066;
+    --bs-pagination-active-bg: rgba(255,102,170,0.2);
+    --bs-pagination-active-color: #cc0066;
+
+    --bs-progress-bg:         #e4dced;
+    --bs-progress-bar-bg:     #ff66aa;
+
+    --bs-tooltip-bg:          #2a1a33;
+    --bs-tooltip-color:       #fff;
+
+    --bs-popover-bg:          #fff;
+    --bs-popover-border-color: #d8cce5;
+    --bs-popover-header-bg:   #f5f0f7;
+
+    /* ── Внутренние переменные плеера ── */
+    --player-bg:              #ede6f4;
+    --player-sidebar-bg:      #e4dced;
+    --player-item-hover-bg:   rgba(255,102,170,0.08);
+    --player-item-active-bg:  rgba(255,102,170,0.18);
+    --player-diff-bg:         #f0eaf8;
+    --player-diff-hover-bg:   rgba(255,102,170,0.06);
+    --player-diff-active-bg:  rgba(255,102,170,0.15);
+    --player-thumb-bg:        #d8cce5;
+    --player-thumb-icon-color:#b0a0c0;
+    --player-text-primary:    #2a1a33;
+    --player-text-secondary:  #7a6088;
+    --player-text-meta:       #a090b5;
+    --player-border:          #d8cce5;
+    --player-border-inner:    #e0d4ec;
+    --player-search-bg:       #fff;
+    --player-search-border:   #c8b8d8;
+    --player-expand-color:    #b0a0c0;
+    --player-cover-ph-bg:     #d8cce5;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Глобальные стили — скроллбар, selection, focus
+   ═══════════════════════════════════════════════════════════════════════════ */
+* { scrollbar-width: thin; scrollbar-color: var(--bs-border-color) transparent; }
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bs-border-color); border-radius: 3px; }
+
+::selection {
+    background: rgba(255, 102, 170, 0.3);
+    color: inherit;
+}
+
+/* Кнопки с primary */
+.btn-primary {
+    --bs-btn-bg:           var(--osu-pink);
+    --bs-btn-border-color: var(--osu-pink);
+    --bs-btn-hover-bg:           #e6559a;
+    --bs-btn-hover-border-color: #e6559a;
+    --bs-btn-active-bg:          #cc4488;
+    --bs-btn-disabled-bg:        var(--osu-pink);
+    --bs-btn-color:        #fff;
+    --bs-btn-hover-color:  #fff;
+    --bs-btn-active-color: #fff;
+}
+
+.btn-outline-primary {
+    --bs-btn-color:              var(--osu-pink);
+    --bs-btn-border-color:       var(--osu-pink);
+    --bs-btn-hover-bg:           var(--osu-pink);
+    --bs-btn-hover-border-color: var(--osu-pink);
+    --bs-btn-hover-color:        #fff;
+    --bs-btn-active-bg:          #e6559a;
+    --bs-btn-active-color:       #fff;
+}
+
+/* Форм-контролы: focus ring в pink */
+.form-control:focus,
+.form-select:focus,
+.form-check-input:focus {
+    border-color: rgba(255, 102, 170, 0.5);
+    box-shadow: 0 0 0 0.2rem rgba(255, 102, 170, 0.18);
+}
+
+/* Чекбоксы / радио */
+.form-check-input:checked {
+    background-color: var(--osu-pink);
+    border-color:     var(--osu-pink);
+}
+
+/* Прогресс-бар */
+.progress-bar { background-color: var(--osu-pink); }
+
+/* Бейджи primary */
+.badge.bg-primary { background-color: var(--osu-pink) !important; }
+
+/* Navbar активная ссылка */
+.nav-link.active,
+.navbar-nav .nav-link.active { color: var(--osu-pink) !important; }

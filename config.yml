@@ -1,0 +1,25 @@
+app:
+  # "production" | "development"
+  # development: connects to Vite dev server (npm run dev must be running)
+  env: "development"
+
+http:
+  # Change if port 3000 is already taken on your machine
+  port: 3000
+
+database:
+  # Path to the SQLite file. Relative paths resolve from the binary location.
+  # Useful for switching between different data files.
+  path: "goosu.db"
+
+log:
+  # Minimum log level forwarded to the browser console: debug | info | warn | error
+  level: "info"
+
+realtime:
+  # WebSocket port for real-time features (browser console logs, live updates).
+  # Change if port 3001 is already taken on your machine.
+  port: 3001
+
+osu:
+  path: ""
