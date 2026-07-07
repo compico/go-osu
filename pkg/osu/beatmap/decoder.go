@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/compico/go-osu/pkg/osu"
+	"github.com/compico/go-osu/pkg/vector2d"
 )
 
 type Decoder struct {
@@ -93,6 +94,8 @@ func (d *Decoder) handleSection(bm *osu.Beatmap) error {
 		return d.parseTimingPointsSection(bm)
 	case difficultySection:
 		return d.parseDifficultySection(bm)
+	case hitObjectsSection:
+		return d.parseHitObjectsSection(bm)
 	}
 
 	return nil
@@ -130,7 +133,7 @@ func (d *Decoder) parseFormatVersion(bm *osu.Beatmap) error {
 }
 
 func (d *Decoder) parseGeneralSection(bm *osu.Beatmap) error {
-	k, v, err := d.getKeyValue(": ")
+	k, v, err := d.getKeyValue()
 	if err != nil {
 		return err
 	}
@@ -225,7 +228,7 @@ func (d *Decoder) parseGeneralSection(bm *osu.Beatmap) error {
 }
 
 func (d *Decoder) parseEditorSection(bm *osu.Beatmap) error {
-	k, v, err := d.getKeyValue(": ")
+	k, v, err := d.getKeyValue()
 	if err != nil {
 		return err
 	}
@@ -281,7 +284,7 @@ func (d *Decoder) parseEditorSection(bm *osu.Beatmap) error {
 }
 
 func (d *Decoder) parseMetaSection(bm *osu.Beatmap) error {
-	k, v, err := d.getKeyValue(":")
+	k, v, err := d.getKeyValue()
 	if err != nil {
 		return err
 	}
@@ -325,7 +328,7 @@ func (d *Decoder) parseMetaSection(bm *osu.Beatmap) error {
 }
 
 func (d *Decoder) parseDifficultySection(bm *osu.Beatmap) error {
-	k, v, err := d.getKeyValue(":")
+	k, v, err := d.getKeyValue()
 	if err != nil {
 		return err
 	}
@@ -429,13 +432,144 @@ func (d *Decoder) parseTimingPointsSection(bm *osu.Beatmap) error {
 	return nil
 }
 
-func (d *Decoder) getKeyValue(sep string) (string, string, error) {
-	values := bytes.SplitN(d.line, []byte(sep), 2)
-	if len(values) != 2 {
+func (d *Decoder) parseHitObjectsSection(bm *osu.Beatmap) error {
+	x, err := d.parseInt()
+	if err != nil {
+		return fmt.Errorf("hit object x: %w", err)
+	}
+	y, err := d.parseInt()
+	if err != nil {
+		return fmt.Errorf("hit object y: %w", err)
+	}
+	timeVal, err := d.parseInt()
+	if err != nil {
+		return fmt.Errorf("hit object time: %w", err)
+	}
+	typeVal, err := d.parseInt()
+	if err != nil {
+		return fmt.Errorf("hit object type: %w", err)
+	}
+
+	// hitSound (bit flags: normal/whistle/finish/clap), пока никуда не сохраняем
+	if _, err := d.parseInt(); err != nil {
+		return fmt.Errorf("hit object hitSound: %w", err)
+	}
+
+	ho := osu.HitObject{
+		Pos:  vector2d.Vector2dd{X: float64(x), Y: float64(y)},
+		Time: timeVal,
+		Type: typeVal,
+	}
+
+	switch {
+	case typeVal&int(osu.HitSlider) != 0:
+		if err := d.parseSliderParams(&ho); err != nil {
+			return fmt.Errorf("hit object slider params: %w", err)
+		}
+	case typeVal&int(osu.HitSpinner) != 0:
+		endTime, err := d.parseInt()
+		if err != nil {
+			return fmt.Errorf("hit object spinner endTime: %w", err)
+		}
+		ho.EndTime = endTime
+	case typeVal&int(osu.HitHold) != 0:
+		endTime, err := d.parseHoldEndTime()
+		if err != nil {
+			return fmt.Errorf("hit object hold endTime: %w", err)
+		}
+		ho.EndTime = endTime
+	}
+	// case typeVal&int(osu.HitNormal) != 0: доп. параметров нет
+
+	bm.HitObjects = append(bm.HitObjects, ho)
+
+	return nil
+}
+
+func (d *Decoder) parseSliderParams(ho *osu.HitObject) error {
+	curveField, ok := d.nextField()
+	if !ok {
+		return fmt.Errorf("unexpected end of line")
+	}
+
+	parts := bytes.Split(curveField, []byte("|"))
+	if len(parts) == 0 || len(parts[0]) == 0 {
+		return fmt.Errorf("invalid curve type")
+	}
+
+	ho.CurveType = rune(parts[0][0])
+
+	for _, p := range parts[1:] {
+		xy := bytes.SplitN(p, []byte(":"), 2)
+		if len(xy) != 2 {
+			return fmt.Errorf("invalid curve point: %s", p)
+		}
+
+		px, err := strconv.ParseFloat(string(xy[0]), 64)
+		if err != nil {
+			return err
+		}
+		py, err := strconv.ParseFloat(string(xy[1]), 64)
+		if err != nil {
+			return err
+		}
+
+		ho.Curves = append(ho.Curves, vector2d.Vector2dd{X: px, Y: py})
+	}
+
+	slides, err := d.parseInt()
+	if err != nil {
+		return fmt.Errorf("slides: %w", err)
+	}
+	ho.Repeat = slides
+
+	length, err := d.parseFloat()
+	if err != nil {
+		return fmt.Errorf("length: %w", err)
+	}
+	ho.PixelLength = length
+
+	// edgeSounds, edgeSets, hitSample опциональны — если их нет, строка уже закончилась
+	if _, ok := d.nextField(); !ok {
+		return nil
+	}
+	if _, ok := d.nextField(); !ok {
+		return nil
+	}
+	d.nextField() // hitSample, пока игнорируем
+
+	return nil
+}
+
+func (d *Decoder) parseHoldEndTime() (int, error) {
+	f, ok := d.nextField()
+	if !ok {
+		return 0, fmt.Errorf("unexpected end of line")
+	}
+
+	if idx := bytes.IndexByte(f, ':'); idx != -1 {
+		f = f[:idx]
+	}
+
+	return strconv.Atoi(string(f))
+}
+
+func (d *Decoder) getKeyValue() (string, string, error) {
+	idx := bytes.IndexByte(d.line, ':')
+	if idx == -1 {
 		return "", "", fmt.Errorf("invalid general section")
 	}
 
-	return string(values[0]), string(values[1]), nil
+	key := d.line[:idx]
+
+	valueStart := idx + 1
+	if valueStart < len(d.line) && d.line[valueStart] == ' ' {
+		valueStart++
+	}
+
+	value := d.line[valueStart:]
+
+	return string(key), string(value), nil
 }
 
 func (d *Decoder) nextField() ([]byte, bool) {
