@@ -27,7 +27,6 @@ func (tp *TimingPoint) BPM() float64 {
 	return 0
 }
 
-// SliderVelocity todo
 func (tp *TimingPoint) SliderVelocity() float64 {
 	if tp == nil {
 		return 1.0
@@ -37,6 +36,5 @@ func (tp *TimingPoint) SliderVelocity() float64 {
 		return 1.0
 	}
 
-	base := tp.PreviousTimingPoint.SliderVelocity()
-	return base * (-100.0 / tp.BeatLength)
+	return -100.0 / tp.BeatLength
 }
