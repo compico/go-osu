@@ -11,6 +11,10 @@ export class AudioService {
         this.setupEventListeners();
     }
 
+    get element(): HTMLAudioElement {
+        return this.audio;
+    }
+
     private setupEventListeners(): void {
         this.audio.addEventListener('timeupdate', () => {
             const time = this.audio.currentTime;

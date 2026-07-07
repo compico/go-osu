@@ -14,7 +14,7 @@ function toggleTheme() {
     <div class="container-fluid">
 
       <!-- Brand -->
-      <span class="navbar-brand fw-semibold mb-0 d-flex align-items-center gap-2">
+      <span class="navbar-brand fw-semibold mb-0 d-flex align-items-center">
         Go<i class="bi bi-play-circle-fill"></i>su
       </span>
 
