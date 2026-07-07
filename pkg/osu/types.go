@@ -125,46 +125,6 @@ type HitObject struct {
 	Ticks        []int
 }
 
-type AimPoint struct {
-	Time int
-	Pos  vector2d.Vector2dd
-	Type AimPointType
-}
-
-type Burst struct {
-	Interval int
-	Strain   float64
-}
-
-type Stream struct {
-	Interval int
-	Length   int
-}
-
-type Skills struct {
-	Stamina   float64
-	Tenacity  float64
-	Agility   float64
-	Precision float64
-	Reading   float64
-	Memory    float64
-	Accuracy  float64
-	Reaction  float64
-}
-
-type Velocities struct {
-	X       []float64
-	Y       []float64
-	Xchange []float64
-	Ychange []float64
-}
-
-type Patterns struct {
-	CompressedStream []int
-	Stream           []int
-	Stack            []int
-}
-
 type Countdown int
 
 const (
@@ -265,33 +225,6 @@ type Beatmap struct {
 
 	// [HitObjects]
 	HitObjects []HitObject
-
-	AimPoints []AimPoint
-	Spinners  int
-
-	TimeMapper map[int]int
-
-	Velocities   Velocities
-	Distances    []float64
-	AimStrains   []float64
-	AngleStrains []float64
-
-	Angles        []float64
-	AngleBonuses  []float64
-	ReactionTimes []int
-
-	PressIntervals []int
-	TapStrains     []float64
-
-	Streams map[int][][]int
-	Bursts  map[int][][]int
-
-	Skills Skills
-
-	Mods       int
-	ModsString string
-
-	Patterns Patterns
 }
 
 // Mod Mods flags
@@ -335,17 +268,6 @@ const (
 	BezierCurve  CurveType = 'B'
 	LinearCurve  CurveType = 'L'
 	CatmullCurve CurveType = 'C'
-)
-
-// AimPointType Aim Point Type
-type AimPointType int
-
-const (
-	AimPointNone          AimPointType = 0
-	AimPointCircle        AimPointType = 1
-	AimPointSlider        AimPointType = 2
-	AimPointSliderReverse AimPointType = 3
-	AimPointSliderEnd     AimPointType = 4
 )
 
 type EventType string
