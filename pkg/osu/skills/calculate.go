@@ -13,6 +13,10 @@ type SkillResult struct {
 }
 
 func CalculateAllSkillsForMods(bm *osu.Beatmap, mods osu.Mod, vars *Vars) (*SkillResult, error) {
+	if bm.Mode != osu.ModeOsu {
+		return nil, fmt.Errorf("invalid mode: %s", bm.Mode)
+	}
+
 	// Применяем моды к копии карты
 	modifiedBm := ApplyMods(bm, mods)
 
@@ -67,7 +71,7 @@ func DefaultModCombinations() []osu.Mod {
 		osu.FL,
 	}
 
-	combinations := make([]osu.Mod, 0, 57)
+	combinations := make([]osu.Mod, 0, 36)
 
 	// Перебираем все подмножества
 	for mask := 0; mask < (1 << len(base)); mask++ {

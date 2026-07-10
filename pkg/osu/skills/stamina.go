@@ -21,32 +21,18 @@ func CalculateStamina(md *MapData, vars *Vars) {
 		return
 	}
 
-	strain := 0.0
-	md.TapStrains = make([]float64, n)
-
-	for i := 0; i < n; i++ {
-		interval := float64(md.PressIntervals[i])
-
-		// Вычисляем difficulty для текущего интервала
-		diff := calculateStaminaDifficulty(interval)
-
-		// Decay
-		decay := 0.0
-		if i > 0 {
-			prevInterval := float64(md.PressIntervals[i-1])
-			decay = math.Pow(staminaStrainDecayBase, prevInterval/1000.0)
-		}
-
-		strain = strain*decay + diff
-		md.TapStrains[i] = strain
+	if len(md.TapStrains) == 0 {
+		CalculateTapStrains(md, vars)
 	}
 
-	// Находим пики strain
-	topWeights := getPeakVals(md.TapStrains)
+	maxStrain := 0.0
+	for _, strainValue := range md.TapStrains {
+		if strainValue > maxStrain {
+			maxStrain = strainValue
+		}
+	}
 
-	// Финальная агрегация
-	md.Skills.Stamina = getWeightedValue2(topWeights, vars.Get("Stamina", "Weighting"))
-	md.Skills.Stamina = vars.Get("Stamina", "TotalMult") * math.Pow(md.Skills.Stamina, vars.Get("Stamina", "TotalPow"))
+	md.Skills.Stamina = vars.Get("Stamina", "TotalMult") * math.Pow(maxStrain, vars.Get("Stamina", "TotalPow"))
 }
 
 // calculateStaminaDifficulty оценивает сложность одного интервала.
