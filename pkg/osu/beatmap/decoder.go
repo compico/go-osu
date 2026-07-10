@@ -3,6 +3,7 @@ package beatmap
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
@@ -60,11 +61,7 @@ func (d *Decoder) next() bool {
 		d.pos++
 	}
 
-	d.line = d.data[start:d.pos]
-
-	if n := len(d.line); n > 0 && d.line[n-1] == '\r' {
-		d.line = d.line[:n-1]
-	}
+	d.line = bytes.TrimRight(d.data[start:d.pos], " \t\r")
 
 	if d.pos < len(d.data) {
 		d.pos++
@@ -220,6 +217,20 @@ func (d *Decoder) parseGeneralSection(bm *osu.Beatmap) error {
 	case "SamplesMatchPlaybackRate":
 		bm.SamplesMatchPlaybackRate = v == "1"
 		break
+	case "EditorBookmarks":
+		bookmarks, err := d.parseBookmarkSection(v)
+		if err != nil {
+			return err
+		}
+		bm.Bookmarks = bookmarks
+		break
+	case "EditorDistanceSpacing":
+		value, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			return err
+		}
+		bm.DistanceSpacing = value
+		break
 	default:
 		return fmt.Errorf("invalid general section: %s", k)
 	}
@@ -235,18 +246,11 @@ func (d *Decoder) parseEditorSection(bm *osu.Beatmap) error {
 
 	switch k {
 	case "Bookmarks":
-		bm.Bookmarks = []int{}
-		for _, bookmark := range strings.Split(v, ",") {
-			bookmark = strings.TrimSpace(bookmark)
-			if bookmark == "" {
-				continue
-			}
-			bookmarkInt, err := strconv.Atoi(bookmark)
-			if err != nil {
-				return err
-			}
-			bm.Bookmarks = append(bm.Bookmarks, bookmarkInt)
+		bookmarks, err := d.parseBookmarkSection(v)
+		if err != nil {
+			return err
 		}
+		bm.Bookmarks = bookmarks
 		break
 	case "DistanceSpacing":
 		value, err := strconv.ParseFloat(v, 64)
@@ -275,6 +279,9 @@ func (d *Decoder) parseEditorSection(bm *osu.Beatmap) error {
 			return err
 		}
 		bm.TimelineZoom = value
+		break
+	case "CurrentTime":
+		// skip, legacy field
 		break
 	default:
 		return fmt.Errorf("invalid editor section: %s", k)
@@ -390,30 +397,12 @@ func (d *Decoder) parseTimingPointsSection(bm *osu.Beatmap) error {
 	if err != nil {
 		return fmt.Errorf("timing point beatLength: %w", err)
 	}
-	meter, err := d.parseInt()
-	if err != nil {
-		return fmt.Errorf("timing point meter: %w", err)
-	}
-	sampleSet, err := d.parseInt()
-	if err != nil {
-		return fmt.Errorf("timing point sampleSet: %w", err)
-	}
-	sampleIndex, err := d.parseInt()
-	if err != nil {
-		return fmt.Errorf("timing point sampleIndex: %w", err)
-	}
-	volume, err := d.parseInt()
-	if err != nil {
-		return fmt.Errorf("timing point volume: %w", err)
-	}
-	uninheritedRaw, err := d.parseInt()
-	if err != nil {
-		return fmt.Errorf("timing point uninherited: %w", err)
-	}
-	effects, err := d.parseInt()
-	if err != nil {
-		return fmt.Errorf("timing point effects: %w", err)
-	}
+	meter := d.parseIntDefault(4)
+	sampleSet := d.parseIntDefault(0)
+	sampleIndex := d.parseIntDefault(0)
+	volume := d.parseIntDefault(100)
+	uninherited := d.parseIntDefault(1)
+	effects := d.parseIntDefault(0)
 
 	bm.TimingPoints = append(bm.TimingPoints, osu.TimingPoint{
 		Time:                timeVal,
@@ -422,7 +411,7 @@ func (d *Decoder) parseTimingPointsSection(bm *osu.Beatmap) error {
 		SampleSet:           osu.SampleSet(sampleSet),
 		SampleIndex:         sampleIndex,
 		Volume:              volume,
-		Uninherited:         uninheritedRaw == 1,
+		Uninherited:         uninherited == 1,
 		Effects:             effects,
 		PreviousTimingPoint: d.previousTimingPoint,
 	})
@@ -489,7 +478,7 @@ func (d *Decoder) parseHitObjectsSection(bm *osu.Beatmap) error {
 func (d *Decoder) parseSliderParams(ho *osu.HitObject) error {
 	curveField, ok := d.nextField()
 	if !ok {
-		return fmt.Errorf("unexpected end of line")
+		return fmt.Errorf("parseSliderParams. unexpected end of line")
 	}
 
 	parts := bytes.Split(curveField, []byte("|"))
@@ -541,10 +530,28 @@ func (d *Decoder) parseSliderParams(ho *osu.HitObject) error {
 	return nil
 }
 
+func (d *Decoder) parseBookmarkSection(bookmarks string) ([]int, error) {
+	var result []int
+
+	for _, bookmark := range strings.Split(bookmarks, ",") {
+		bookmark = strings.TrimSpace(bookmark)
+		if bookmark == "" {
+			return nil, nil
+		}
+		bookmarkInt, err := strconv.Atoi(bookmark)
+		if err != nil {
+			return []int{}, err
+		}
+		result = append(result, bookmarkInt)
+	}
+
+	return result, nil
+}
+
 func (d *Decoder) parseHoldEndTime() (int, error) {
 	f, ok := d.nextField()
 	if !ok {
-		return 0, fmt.Errorf("unexpected end of line")
+		return 0, fmt.Errorf("parseHoldEndTime. unexpected end of line")
 	}
 
 	if idx := bytes.IndexByte(f, ':'); idx != -1 {
@@ -584,10 +591,22 @@ func (d *Decoder) nextField() ([]byte, bool) {
 	return f, true
 }
 
+func (d *Decoder) parseIntDefault(def int) int {
+	f, ok := d.nextField()
+	if !ok {
+		return def
+	}
+	floatVal, err := strconv.ParseFloat(string(f), 64)
+	if err != nil {
+		return def
+	}
+	return int(math.Round(floatVal))
+}
+
 func (d *Decoder) parseFloat() (float64, error) {
 	f, ok := d.nextField()
 	if !ok {
-		return 0, fmt.Errorf("unexpected end of line")
+		return 0, fmt.Errorf("parseFloat. unexpected end of line")
 	}
 	return strconv.ParseFloat(string(f), 64)
 }
@@ -595,7 +614,14 @@ func (d *Decoder) parseFloat() (float64, error) {
 func (d *Decoder) parseInt() (int, error) {
 	f, ok := d.nextField()
 	if !ok {
-		return 0, fmt.Errorf("unexpected end of line")
+		return 0, fmt.Errorf("parseInt. unexpected end of line")
 	}
-	return strconv.Atoi(string(f))
+
+	// Some cards have values like "HitObject X" as a float64
+	floatVal, err := strconv.ParseFloat(string(f), 64)
+	if err != nil {
+		return 0, err
+	}
+
+	return int(math.Round(floatVal)), nil
 }
