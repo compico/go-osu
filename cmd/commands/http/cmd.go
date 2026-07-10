@@ -15,6 +15,7 @@ import (
 	"github.com/compico/go-osu/internal/http/view"
 	"github.com/compico/go-osu/internal/logger"
 	"github.com/compico/go-osu/internal/realtime"
+	"github.com/compico/go-osu/internal/repository"
 	"github.com/compico/go-osu/internal/service"
 	"github.com/compico/go-osu/internal/tray"
 	"github.com/urfave/cli/v3"
@@ -48,6 +49,7 @@ func run(ctx context.Context, c *cli.Command) error {
 		return err
 	}
 
+	slogger.Info("Starting reading osudb file")
 	err = osuService.ReadOsuDBFile()
 	if err != nil {
 		return err
@@ -65,6 +67,13 @@ func run(ctx context.Context, c *cli.Command) error {
 	}(db)
 
 	if err := db.Migrate(ctx); err != nil {
+		return err
+	}
+
+	repos := repository.New(db)
+	syncService := service.NewSyncer(osuService, repos, slogger)
+
+	if err = syncService.Run(ctx); err != nil {
 		return err
 	}
 

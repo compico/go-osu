@@ -148,11 +148,11 @@ func New(cfg *config.LogConfig) (*slog.Logger, *BrowserHandler, error) {
 	browser := newBrowserHandler(level)
 
 	stderr := slog.NewTextHandler(io.Writer(os.Stderr), &slog.HandlerOptions{
-		Level: slog.LevelError,
+		Level: slog.LevelInfo,
 	})
 
 	logger := slog.New(&multiHandler{
-		handlers: []slog.Handler{browser, stderr},
+		handlers: []slog.Handler{stderr, browser},
 	})
 
 	return logger, browser, nil

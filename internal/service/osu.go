@@ -4,10 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/compico/go-osu/pkg/osu"
@@ -27,12 +30,12 @@ type Osu struct {
 	songsJson              []byte
 	BeatmapDifficultyIndex map[int32]map[int32]int
 	BeatmapByDifficultyId  map[int32]int32
-	logger                 *slog.Logger
+	Logger                 *slog.Logger
 }
 
 func NewOsuService(gamePath string, logger *slog.Logger) (*Osu, error) {
 	srv := &Osu{
-		logger:   logger,
+		Logger:   logger,
 		gamePath: gamePath,
 	}
 
@@ -126,11 +129,11 @@ func (o *Osu) hashing() error {
 	o.BeatmapDifficultyIndex = make(map[int32]map[int32]int)
 	o.BeatmapByDifficultyId = make(map[int32]int32)
 	for i := 0; i < len(o.dataBase.Beatmaps); i++ {
-		if len(o.BeatmapDifficultyIndex[o.dataBase.Beatmaps[i].BeatmapID]) == 0 {
-			o.BeatmapDifficultyIndex[o.dataBase.Beatmaps[i].BeatmapID] = make(map[int32]int)
+		if len(o.BeatmapDifficultyIndex[o.dataBase.Beatmaps[i].BeatmapSetID]) == 0 {
+			o.BeatmapDifficultyIndex[o.dataBase.Beatmaps[i].BeatmapSetID] = make(map[int32]int)
 		}
-		o.BeatmapDifficultyIndex[o.dataBase.Beatmaps[i].BeatmapID][o.dataBase.Beatmaps[i].DifficultyID] = i
-		o.BeatmapByDifficultyId[o.dataBase.Beatmaps[i].DifficultyID] = o.dataBase.Beatmaps[i].BeatmapID
+		o.BeatmapDifficultyIndex[o.dataBase.Beatmaps[i].BeatmapSetID][o.dataBase.Beatmaps[i].BeatmapID] = i
+		o.BeatmapByDifficultyId[o.dataBase.Beatmaps[i].BeatmapID] = o.dataBase.Beatmaps[i].BeatmapSetID
 	}
 	o.directorySorting()
 
@@ -167,7 +170,7 @@ func (o *Osu) directorySorting() {
 			if firstElement {
 				firstElement = false
 				directory.ID = i
-				directory.BeatmapID = o.dataBase.Beatmaps[i].BeatmapID
+				directory.BeatmapID = o.dataBase.Beatmaps[i].BeatmapSetID
 				directory.SongName = o.dataBase.Beatmaps[i].SongTitle
 				directory.ArtistName = o.dataBase.Beatmaps[i].ArtistName
 			}
@@ -256,4 +259,70 @@ func (o *Osu) getIndexByDifficultyId(difficultyId int32) (int, error) {
 	}
 
 	return -1, fmt.Errorf("cannot find beatmap by difficultyId: %v", difficultyId)
+}
+
+func (o *Osu) ParseBeatmapFile(bm osu.DatabaseBeatmap) (*osu.Beatmap, error) {
+	path := o.GetOsuFilePath(bm)
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read .osu file %q: %w", path, err)
+	}
+
+	full := &osu.Beatmap{}
+	if err := beatmap.Unmarshal(data, full); err != nil {
+		return nil, fmt.Errorf("parse .osu file %q: %w", path, err)
+	}
+
+	return full, nil
+}
+
+func (o *Osu) GetBeatmaps() []osu.DatabaseBeatmap {
+	if o.dataBase == nil || o.dataBase.Beatmaps == nil {
+		return nil
+	}
+
+	return o.dataBase.Beatmaps
+}
+
+func (o *Osu) GetUserID(username string) (int, error) {
+	resp, err := http.Get("https://osu.ppy.sh/users/" + username)
+	if err != nil {
+		return 0, err
+	}
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			o.Logger.Warn("Failed to close response body")
+		}
+	}(resp.Body)
+
+	url := resp.Request.URL.String()
+
+	var id []byte
+
+	// Идем справа налево до '/'
+	for i := len(url) - 1; i >= 0; i-- {
+		if url[i] == '/' {
+			break
+		}
+		id = append(id, url[i])
+	}
+
+	// Разворачиваем слайс
+	for l, r := 0, len(id)-1; l < r; l, r = l+1, r-1 {
+		id[l], id[r] = id[r], id[l]
+	}
+
+	// Проверяем, что получили только цифры
+	if len(id) == 0 {
+		return 0, errors.New("user not found")
+	}
+
+	userID, err := strconv.Atoi(string(id))
+	if err != nil {
+		return 0, errors.New("user not found")
+	}
+
+	return userID, nil
 }

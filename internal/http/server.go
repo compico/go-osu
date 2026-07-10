@@ -34,8 +34,6 @@ type Server struct {
 func New(cfg *config.Config, logger *slog.Logger) *Server {
 	app := fiber.New(fiber.Config{
 		IdleTimeout: idleTimeout,
-		//CBOREncoder: cbor.Marshal,
-		//CBORDecoder: cbor.Unmarshal,
 	})
 
 	s := &Server{
@@ -51,7 +49,9 @@ func New(cfg *config.Config, logger *slog.Logger) *Server {
 // Start begins listening. Blocks until the server is shut down.
 func (s *Server) Start() error {
 	s.logger.Info("http server listening", "addr", s.addr)
-	return s.app.Listen(s.addr)
+	return s.app.Listen(s.addr, fiber.ListenConfig{
+		DisableStartupMessage: true,
+	})
 }
 
 // Stop gracefully shuts down the server.

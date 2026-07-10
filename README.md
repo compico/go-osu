@@ -2,6 +2,13 @@
 
 [Русская версия](README.RU.MD)
 
+> **⚠️ First Launch**
+>
+> The first launch may take a considerable amount of time. During this process, the application calculates star ratings for all beatmaps across all supported game modes and builds a local cache. Once completed, subsequent launches will be significantly faster.
+>
+> **Performance example:** processing a library of ~16,000 beatmaps takes approximately **5 minutes** on an Intel Core i5-10400F with an SSD.
+
+
 A desktop application for working with your [osu!](https://osu.ppy.sh/) library: parses `osu!.db` and `.osu` beatmap files, spins up a local web server with a music player for your installed beatmaps, and lives in the system tray.
 
 The backend is written in Go (Fiber + SQLite), the frontend is Vue 3 + TypeScript + Vite.
