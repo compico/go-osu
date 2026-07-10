@@ -81,8 +81,8 @@ type DatabaseBeatmap struct {
 	DrainTime            int32                 `json:"drain_time"`
 	TotalTime            int32                 `json:"total_time"`
 	PreviewAudioTime     int32                 `json:"preview_audio_time"`
-	DifficultyID         int32                 `json:"difficulty_id"`
 	BeatmapID            int32                 `json:"beatmap_id"`
+	BeatmapSetID         int32                 `json:"beatmap_set_id"`
 	ThreadID             int32                 `json:"thread_id"`
 	LastModificationTime int32                 `json:"last_modification_time"`
 	NumberOfHitcircles   int16                 `json:"number_of_hitcircles"`
