@@ -48,7 +48,7 @@ func TestSkillsValues_OutputForComparison(t *testing.T) {
 		result := ProcessBeatmap(&bm, 0, vars)
 
 		// Format: beatmap_id | stamina | tenacity | agility | precision | reading | memory | accuracy | reaction
-		fmt.Printf("%d | %.2f | %.2f | %.2f | %.2f | %.2f | %.2f | %.2f | %.2f\n",
+		debugf("%d | %.2f | %.2f | %.2f | %.2f | %.2f | %.2f | %.2f | %.2f\n",
 			bm.BeatmapID,
 			result.Skills.Stamina,
 			result.Skills.Tenacity,
@@ -73,7 +73,7 @@ func TestSkillsValues_OutputForComparison(t *testing.T) {
 		for _, modCombo := range modCombinations {
 			result := ProcessBeatmap(&bm, modCombo.mods, vars)
 
-			fmt.Printf("%d (%s) | %.2f | %.2f | %.2f | %.2f | %.2f | %.2f | %.2f | %.2f\n",
+			debugf("%d (%s) | %.2f | %.2f | %.2f | %.2f | %.2f | %.2f | %.2f | %.2f\n",
 				bm.BeatmapID,
 				modCombo.name,
 				result.Skills.Stamina,
