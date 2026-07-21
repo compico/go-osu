@@ -1,11 +1,13 @@
 <template>
   <div class="osu-app">
-    <!-- ── Левая часть: заглушка под будущую аналитику по картам ────── -->
+    <!-- ── Левая часть: детали выбранной карты ────── -->
     <div class="player-area">
-      <div class="analytics-placeholder">
-        <i class="bi bi-bar-chart-line"></i>
-        <p>todo</p>
-      </div>
+      <MapDetailsPanel
+          :group="selectedGroup"
+          :diff="selectedDiff"
+          :mods-label="currentModsLabel"
+          @play="playSelected"
+      />
     </div>
 
     <!-- ── Правая часть: список треков ──────────────────────────────── -->
@@ -17,7 +19,7 @@
               v-model="searchQuery"
               type="text"
               class="search-input"
-              placeholder="artist, title… stars>6, ar>9, bpm>200"
+              placeholder="artist, title… stars>6, ar>9, bpm>200, mode=HDDT"
               @input="debouncedSearch"
           />
           <button
@@ -29,8 +31,8 @@
           </button>
         </div>
         <div class="result-count">
-          <span v-if="loading">loading…</span>
-          <span v-else>{{ filteredGroups.length }} maps</span>
+          <span v-if="loading && groups.length === 0">loading…</span>
+          <span v-else>{{ groups.length }}{{ hasMore ? '+' : '' }} maps</span>
         </div>
       </div>
 
@@ -49,69 +51,48 @@
                 v-if="item.type === 'group'"
                 class="song-item"
                 :class="{
-                  expanded: expandedGroups.has(item.beatmap_id),
-                  'group-active':
-                   playerStore.currentTrack?.groupKey?.startsWith(`${item.beatmap_id}:`),
+                  expanded: expandedGroups.has(item.beatmap_set_id),
+                  'group-active': playerStore.currentTrack?.groupSetId === item.beatmap_set_id,
+                  'group-selected': selectedGroup?.beatmap_set_id === item.beatmap_set_id,
                 }"
                 @click="toggleGroup(item)"
             >
               <div class="thumb">
                 <img
-                    v-if="!thumbErrors[item.beatmap_id]"
-                    :src="`/api/osu/bg/${item.beatmap_id}.jpg`"
+                    v-if="!thumbErrors[item.beatmap_set_id]"
+                    :src="`/api/osu/bg/${item.beatmap_set_id}.jpg`"
                     class="thumb-img"
                     loading="lazy"
-                    @error="thumbErrors[item.beatmap_id] = true"
+                    @error="thumbErrors[item.beatmap_set_id] = true"
                 />
                 <div v-else class="thumb-placeholder">
                   <i class="bi bi-music-note"></i>
                 </div>
               </div>
               <div class="song-info">
-                <div class="song-name">
-                  {{ item.song_name }}
-                </div>
-                <div class="song-artist">
-                  {{ item.artist_name }}
-                </div>
+                <div class="song-name">{{ item.song_title }}</div>
+                <div class="song-artist">{{ item.artist_name }}</div>
                 <div class="song-meta">
                   <span class="diff-count">
                     <i class="bi bi-layers"></i>
-                      {{ item.diffs.length }}
+                    {{ item.diffs.length }}
                   </span>
-                  <span
-                      v-if="item._starsMin != null"
-                      class="song-stars"
-                  >
-                                        <i class="bi bi-star-fill"></i>
-                                        {{ item._starsMin.toFixed(1) }}
-                                        <span
-                                            v-if="
-                                                item._starsMax !==
-                                                item._starsMin
-                                            "
-                                        >–
-                                            {{
-                                            item._starsMax.toFixed(1)
-                                          }}</span
-                                        >
-                                    </span>
+                  <span class="song-stars">
+                    <i class="bi bi-star-fill"></i>
+                    {{ item.stars_min.toFixed(1) }}
+                    <span v-if="item.stars_max !== item.stars_min">–{{ item.stars_max.toFixed(1) }}</span>
+                  </span>
                 </div>
               </div>
               <div
                   class="expand-icon"
-                  :class="{
-                                    open: expandedGroups.has(item.beatmap_id),
-                                }"
+                  :class="{ open: expandedGroups.has(item.beatmap_set_id) }"
               >
                 <i class="bi bi-chevron-right"></i>
               </div>
               <div
                   class="play-indicator"
-                  v-if="
-                    playerStore.currentTrack?.groupKey?.startsWith(`${item.beatmap_id}:`) &&
-                    playerStore.isPlaying
-                  "
+                  v-if="playerStore.currentTrack?.groupSetId === item.beatmap_set_id && playerStore.isPlaying"
               >
                 <i class="bi bi-play-fill"></i>
               </div>
@@ -122,224 +103,236 @@
                 v-else-if="item.type === 'diff'"
                 class="diff-item"
                 :class="{
-                  active:
-                  playerStore.currentTrack?.id === String(item.difficulty_id),
+                  active: playerStore.currentTrack?.id === String(item.beatmap_id),
+                  selected: selectedDiff?.beatmap_id === item.beatmap_id,
                 }"
                 @click="selectDiff(item._group, item)"
             >
               <div class="diff-indent"></div>
-              <div
-                  class="diff-star-bar"
-                  :style="{ background: starColor(item._stars) }"
-              ></div>
+              <div class="diff-star-bar" :style="{ background: starColor(item.stars) }"></div>
               <div class="diff-info">
-                 <span class="diff-name">{{
-                   item.difficulty
-                 }}</span>
+                <span class="diff-name">{{ item.difficulty }}</span>
                 <span class="diff-stats">
-                                    <i class="bi bi-star-fill"></i>
-                                    {{ item._stars?.toFixed(2) ?? "?" }} · AR
-                                    {{ item.approach_rate }} ·
-                                    {{ formatTime(item.drain_time) }}
-                                </span>
+                  <i class="bi bi-star-fill"></i>
+                  {{ item.stars?.toFixed(2) ?? '?' }} · AR {{ item.approach_rate }} ·
+                  {{ formatTime(item.drain_time) }}
+                </span>
               </div>
               <div
                   class="play-indicator small"
-                  v-if="playerStore.currentTrack?.id === String(item.difficulty_id)"
+                  v-if="playerStore.currentTrack?.id === String(item.beatmap_id)"
               >
-                <i
-                    :class="
-                      playerStore.isPlaying
-                        ? 'bi bi-pause-fill'
-                        : 'bi bi-play-fill'
-                    "
-                ></i>
+                <i :class="playerStore.isPlaying ? 'bi bi-pause-fill' : 'bi bi-play-fill'"></i>
               </div>
             </div>
           </div>
         </template>
       </RecycleScroller>
 
-      <div
-          v-if="!loading && filteredGroups.length === 0"
-          class="empty-state"
-      >
+      <div v-if="loading && groups.length > 0" class="loading-more">loading more…</div>
+
+      <div v-if="!loading && groups.length === 0" class="empty-state">
         <i class="bi bi-emoji-frown"></i>
         <p>No maps found</p>
-        <small v-if="searchQuery"
-        >Try: <code>stars&gt;5</code> · <code>ar&gt;9</code> ·
-          <code>bpm&gt;180</code></small
-        >
+        <small v-if="searchQuery">
+          Try: <code>stars&gt;5</code> · <code>ar&gt;9</code> · <code>bpm&gt;180</code> · <code>mode=HDDT</code>
+        </small>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import {computed, nextTick, onMounted, reactive, ref, watch} from "vue";
-import {RecycleScroller} from "vue-virtual-scroller";
-import "vue-virtual-scroller/dist/vue-virtual-scroller.css";
-import {useThemeStore} from "@/stores/theme";
-import {usePlayerStore} from "@/stores/player.store";
-import {diffToTrack, groupToTracks, useOsuCatalog} from "@/composables/useOsuCatalog";
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { RecycleScroller } from 'vue-virtual-scroller'
+import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
+import { useThemeStore } from '@/stores/theme'
+import { usePlayerStore } from '@/stores/player.store'
+import { diffToTrack, useOsuCatalog } from '@/composables/useOsuCatalog'
+import MapDetailsPanel from './MapDetailsPanel.vue'
 
-const themeStore = useThemeStore();
-const playerStore = usePlayerStore();
-const {groups, loading, search} = useOsuCatalog();
+const themeStore = useThemeStore()
+const playerStore = usePlayerStore()
+const { groups, loading, hasMore, search, loadMore, getEffectiveQuery, getSort } = useOsuCatalog()
 
-const expandedGroups = ref(new Set());
-const searchQuery = ref("");
-const filteredGroups = ref([]);
-const scrollerEl = ref(null);
-const thumbErrors = reactive({});
-let debounceTimer = null;
+const expandedGroups = ref(new Set())
+const searchQuery = ref('')
+const scrollerEl = ref(null)
+const thumbErrors = reactive({})
+let debounceTimer = null
 
-watch(groups, (g) => {
-  filteredGroups.value = g;
-}, {immediate: true});
+// ── Выбор (для левой панели) отдельно от воспроизведения ──────────
+// Клик по diff-строке ТОЛЬКО выбирает карту для предпросмотра —
+// не трогает текущий трек в глобальном плеере. Запуск — явной кнопкой
+// Play в MapDetailsPanel.
+const selectedGroup = ref(null)
+const selectedDiff = ref(null)
 
 onMounted(() => {
-  themeStore.apply();
-});
+  themeStore.apply()
+  nextTick(attachScrollListener)
+})
+
+onBeforeUnmount(() => {
+  detachScrollListener()
+})
+
+// ── Infinite scroll ──────────────────────────────────────────────────
+const SCROLL_THRESHOLD_PX = 300
+let scrollTarget = null
+
+function handleScroll() {
+  if (!scrollTarget) return
+  const { scrollTop, clientHeight, scrollHeight } = scrollTarget
+  if (scrollHeight - (scrollTop + clientHeight) < SCROLL_THRESHOLD_PX) {
+    loadMore()
+  }
+}
+
+function attachScrollListener() {
+  scrollTarget = scrollerEl.value?.$el
+  if (!scrollTarget) return
+  scrollTarget.addEventListener('scroll', handleScroll)
+}
+
+function detachScrollListener() {
+  if (scrollTarget) scrollTarget.removeEventListener('scroll', handleScroll)
+  scrollTarget = null
+}
 
 const flatList = computed(() => {
-  const list = [];
-  for (const g of filteredGroups.value) {
-    list.push({...g, type: "group", _key: `g-${g.beatmap_id}`, _size: 68});
-    if (expandedGroups.value.has(g.beatmap_id)) {
+  const list = []
+  for (const g of groups.value) {
+    list.push({ ...g, type: 'group', _key: `g-${g.beatmap_set_id}`, _size: 68 })
+    if (expandedGroups.value.has(g.beatmap_set_id)) {
       for (const d of g.diffs) {
-        list.push({...d, type: "diff", _key: `d-${d.difficulty_id}`, _group: g, _size: 44});
+        list.push({ ...d, type: 'diff', _key: `d-${d.beatmap_id}`, _group: g, _size: 44 })
       }
     }
   }
-  return list;
-});
+  return list
+})
 
-function playDiff(group, diff) {
-  if (!diff) return;
-  const queue = filteredGroups.value.flatMap((g) => groupToTracks(g));
-  const track = diffToTrack(group, diff);
-  playerStore.setPlaylist(queue);
-  playerStore.play(track);
+/** Явный запуск воспроизведения — вызывается только из кнопки Play. */
+function playSelected() {
+  if (!selectedGroup.value || !selectedDiff.value) return
+  const track = diffToTrack(selectedGroup.value, selectedDiff.value)
+  playerStore.playFromBrowse(track, { query: getEffectiveQuery(), sort: getSort() })
 }
 
-// ── Скролл к элементу; instant при первой синхронизации, smooth при обычных кликах ──
-function scrollToSelected(key, {smooth = true} = {}) {
-  const list = flatList.value;
-  const idx = list.findIndex((item) => item._key === key);
-  if (idx === -1 || !scrollerEl.value) return;
-  const scroller = scrollerEl.value.$el;
-  if (!scroller || scroller.clientHeight === 0) return;
-  let offsetTop = 0;
-  for (let i = 0; i < idx; i++) offsetTop += list[i].type === "group" ? 68 : 44;
-  const itemH = list[idx].type === "group" ? 68 : 44;
-  const target = offsetTop - scroller.clientHeight / 2 + itemH / 2;
-  scroller.scrollTo({top: Math.max(0, target), behavior: smooth ? "smooth" : "auto"});
+function scrollToSelected(key, { smooth = true } = {}) {
+  const list = flatList.value
+  const idx = list.findIndex((item) => item._key === key)
+  if (idx === -1 || !scrollerEl.value) return
+  const scroller = scrollerEl.value.$el
+  if (!scroller || scroller.clientHeight === 0) return
+  let offsetTop = 0
+  for (let i = 0; i < idx; i++) offsetTop += list[i]._size
+  const itemH = list[idx]._size
+  const target = offsetTop - scroller.clientHeight / 2 + itemH / 2
+  scroller.scrollTo({ top: Math.max(0, target), behavior: smooth ? 'smooth' : 'auto' })
 }
 
+/** Разворот группы — только показывает диффы и выбирает первую для
+ *  предпросмотра в левой панели, воспроизведение не трогает. */
 function toggleGroup(group) {
-  const wasOpen = expandedGroups.value.has(group.beatmap_id);
-  const s = new Set();
+  const wasOpen = expandedGroups.value.has(group.beatmap_set_id)
+  const s = new Set()
   if (!wasOpen) {
-    s.add(group.beatmap_id);
-    const isCurrentGroup = playerStore.currentTrack?.groupKey?.startsWith(`${group.beatmap_id}:`);
-    if (!isCurrentGroup) playDiff(group, group.diffs[0]);
+    s.add(group.beatmap_set_id)
+    selectDiffQuiet(group, group.diffs[0])
   }
-  expandedGroups.value = s;
-  const scrollKey = !wasOpen ? `d-${group.diffs[0]?.difficulty_id}` : `g-${group.beatmap_id}`;
-  scrollToSelected(scrollKey);
+  expandedGroups.value = s
+  const scrollKey = !wasOpen ? `d-${group.diffs[0]?.beatmap_id}` : `g-${group.beatmap_set_id}`
+  scrollToSelected(scrollKey)
+}
+
+/** Выбор без скролла — используется для авто-выбора первой диффы при
+ *  разворачивании группы, где скролл уже управляется отдельно. */
+function selectDiffQuiet(group, diff) {
+  selectedGroup.value = group
+  selectedDiff.value = diff
 }
 
 function selectDiff(group, diff) {
-  if (!diff) return;
-  if (playerStore.currentTrack?.id === String(diff.difficulty_id)) {
-    playerStore.toggle();
-    return;
-  }
-  playDiff(group, diff);
-  expandedGroups.value = new Set([group.beatmap_id]);
-  scrollToSelected(`d-${diff.difficulty_id}`);
+  if (!diff) return
+  selectDiffQuiet(group, diff)
 }
 
-// ── Синхронизация списка с плеером ─────────────────────────────────────
-// Срабатывает пока компонент смонтирован (список виден на экране) —
-// когда его нет в DOM, watch-эффекты Vue сами остановлены, ничего лишнего не крутится.
+// ── Синхронизация списка/панели с плеером ───────────────────────────
+// При смене трека (в т.ч. next/prev из глобального плеера) левая
+// панель следует за тем, что реально играет — пока пользователь явно
+// не выберет другую карту для предпросмотра.
 function findGroupByTrack(track) {
-  if (!track?.groupKey) return null;
-  const [beatmapIdStr] = track.groupKey.split(':');
-  const beatmapId = Number(beatmapIdStr);
-  return filteredGroups.value.find((g) => g.beatmap_id === beatmapId) ?? null;
+  if (track?.groupSetId == null) return null
+  return groups.value.find((g) => g.beatmap_set_id === track.groupSetId) ?? null
 }
 
-function syncSelectionToTrack(track, {smooth = true} = {}) {
-  const group = findGroupByTrack(track);
-  // если трек отфильтрован текущим поиском — просто не трогаем список,
-  // не сбрасываем поисковый запрос пользователя
-  if (!group) return;
-  expandedGroups.value = new Set([group.beatmap_id]);
-  nextTick(() => scrollToSelected(`d-${track.id}`, {smooth}));
+function syncSelectionToTrack(track, { smooth = true } = {}) {
+  const group = findGroupByTrack(track)
+  if (!group) return
+  const diff = group.diffs.find((d) => String(d.beatmap_id) === track.id)
+  expandedGroups.value = new Set([group.beatmap_set_id])
+  selectedGroup.value = group
+  selectedDiff.value = diff ?? group.diffs[0]
+  nextTick(() => scrollToSelected(`d-${track.id}`, { smooth }))
 }
 
-// Первая синхронизация — как только каталог реально загрузился и есть что показывать
-let hasInitialSync = false;
-watch(filteredGroups, () => {
-  if (hasInitialSync || loading.value) return;
+let hasInitialSync = false
+watch(groups, () => {
+  if (hasInitialSync || loading.value) return
+  hasInitialSync = true
   if (playerStore.currentTrack) {
-    hasInitialSync = true;
-    syncSelectionToTrack(playerStore.currentTrack, {smooth: false});
-  } else {
-    hasInitialSync = true;
+    syncSelectionToTrack(playerStore.currentTrack, { smooth: false })
   }
-});
+})
 
-// Последующие переключения трека (в т.ч. next/prev из плеера)
 watch(
     () => playerStore.currentTrack,
     (track, oldTrack) => {
-      if (!hasInitialSync) return;
+      if (!hasInitialSync) return
       if (track && track.id !== oldTrack?.id) {
-        syncSelectionToTrack(track);
+        syncSelectionToTrack(track)
       }
     },
-);
+)
 
 function debouncedSearch() {
-  clearTimeout(debounceTimer);
+  clearTimeout(debounceTimer)
   debounceTimer = setTimeout(() => {
-    filteredGroups.value = search(searchQuery.value);
-  }, 150);
+    search(searchQuery.value)
+  }, 150)
 }
 
 function clearSearch() {
-  searchQuery.value = "";
-  filteredGroups.value = groups.value;
-  clearTimeout(debounceTimer);
+  searchQuery.value = ''
+  search('')
+  clearTimeout(debounceTimer)
 }
 
 function formatTime(seconds) {
-  if (!seconds) return "0:00";
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${String(s).padStart(2, "0")}`;
+  if (!seconds) return '0:00'
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${m}:${String(s).padStart(2, '0')}`
 }
 
 function starColor(stars) {
-  if (!stars) return "var(--bs-border-color)";
-  if (stars < 2) return "var(--osu-star-1)";
-  if (stars < 3) return "var(--osu-star-2)";
-  if (stars < 4) return "var(--osu-star-3)";
-  if (stars < 5) return "var(--osu-star-4)";
-  if (stars < 6) return "var(--osu-star-5)";
-  if (stars < 7) return "var(--osu-star-6)";
-  return "var(--osu-star-7)";
+  if (!stars) return 'var(--bs-border-color)'
+  if (stars < 2) return 'var(--osu-star-1)'
+  if (stars < 3) return 'var(--osu-star-2)'
+  if (stars < 4) return 'var(--osu-star-3)'
+  if (stars < 5) return 'var(--osu-star-4)'
+  if (stars < 6) return 'var(--osu-star-5)'
+  if (stars < 7) return 'var(--osu-star-6)'
+  return 'var(--osu-star-7)'
 }
-</script>
 
-<style>
-.song-list .vue-recycle-scroller__item-wrapper {
-  will-change: transform;
-}
-</style>
+const currentModsLabel = computed(() => {
+  const match = searchQuery.value.match(/\bmode=([A-Za-z]+)\b/)
+  return match ? match[1].toUpperCase() : 'NoMod'
+})
+</script>
 
 <style scoped>
 .osu-app {
@@ -354,24 +347,16 @@ function starColor(stars) {
   transition: background 0.25s ease, color 0.25s ease;
 }
 
-/* ── Заглушка аналитики ─────────────────────────────────────────── */
+/* Пробивает scoping в дочерний компонент RecycleScroller — замена
+   прежнего глобального <style> блока без scoped-изоляции. */
+.song-list :deep(.vue-recycle-scroller__item-wrapper) {
+  will-change: transform;
+}
+
 .player-area {
   flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  min-height: 0;
   overflow: hidden;
-}
-
-.analytics-placeholder {
-  text-align: center;
-  color: var(--player-expand-color);
-}
-
-.analytics-placeholder i {
-  font-size: 56px;
-  display: block;
-  margin-bottom: 10px;
 }
 
 /* ── Sidebar ──────────────────────────────────────────────────────────────── */
@@ -497,6 +482,10 @@ function starColor(stars) {
   border-left-color: var(--osu-pink);
 }
 
+.song-item.group-selected:not(.group-active) {
+  border-left-color: var(--osu-pink-subtle);
+}
+
 .song-item.expanded {
   transform: translateX(4px);
   border-left-color: var(--osu-pink-border);
@@ -614,6 +603,11 @@ function starColor(stars) {
   border-left-color: var(--osu-pink);
 }
 
+.diff-item.selected:not(.active) {
+  border-left-color: var(--osu-pink-subtle);
+  background: var(--player-diff-hover-bg);
+}
+
 .diff-indent {
   width: 56px;
   flex-shrink: 0;
@@ -672,12 +666,15 @@ function starColor(stars) {
 }
 
 @keyframes pulse-icon {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.4;
-  }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.loading-more {
+  text-align: center;
+  padding: 10px;
+  font-size: 11px;
+  color: var(--player-text-meta);
 }
 
 .empty-state {

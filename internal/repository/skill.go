@@ -50,3 +50,22 @@ func (r *SkillRepo) ForMods(ctx context.Context, mods int32) (map[int32]model.Sk
 	}
 	return out, nil
 }
+
+func (r *SkillRepo) ForModsAndBeatmapIDs(ctx context.Context, mods int32, beatmapIDs []int32) (map[int32]model.SkillCache, error) {
+	if len(beatmapIDs) == 0 {
+		return map[int32]model.SkillCache{}, nil
+	}
+	query, args, err := sqlx.In(`SELECT * FROM skill_cache WHERE mods = ? AND beatmap_id IN (?)`, mods, beatmapIDs)
+	if err != nil {
+		return nil, fmt.Errorf("build skill_cache query: %w", err)
+	}
+	var rows []model.SkillCache
+	if err := r.db.SelectContext(ctx, &rows, r.db.Rebind(query), args...); err != nil {
+		return nil, fmt.Errorf("get skill_cache for mods %d: %w", mods, err)
+	}
+	out := make(map[int32]model.SkillCache, len(rows))
+	for _, row := range rows {
+		out[row.BeatmapID] = row
+	}
+	return out, nil
+}

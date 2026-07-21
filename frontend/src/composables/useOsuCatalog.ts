@@ -1,195 +1,136 @@
 import { ref, shallowRef } from 'vue'
-import Fuse from 'fuse.js'
 import type { Track } from '@/types/player'
 
-export interface EnrichedDiff {
-    difficulty_id: number
+export interface SkillsDTO {
+    stamina: number
+    tenacity: number
+    agility: number
+    precision: number
+    reading: number
+    memory: number
+    accuracy: number
+    reaction: number
+}
+
+export interface DiffDTO {
+    beatmap_id: number
     difficulty: string
+    stars: number
     approach_rate: number
-    overall_difficulty: number
-    circle_size: number
-    hp_drain: number
     drain_time: number
+    bpm: number
     audio_file_name: string
     creator_name: string
-    _stars: number | null
-    _bpm: number
+    skills?: SkillsDTO
 }
 
-export interface EnrichedGroup {
-    id: number
-    beatmap_id: number
-    song_name: string
+export interface GroupDTO {
+    beatmap_set_id: number
+    song_title: string
     artist_name: string
-    diffs: EnrichedDiff[]
-    _starsMin: number | null
-    _starsMax: number | null
-    _bpm: number
-    _ar: number
-    _od: number
-    _cs: number
-    _hp: number
-    _drain: number
-    _creator: string
-    _diffNames: string
+    diffs: DiffDTO[]
+    stars_min: number
+    stars_max: number
 }
 
-// singleton-состояние — грузим один раз на всё приложение
-const groups = shallowRef<EnrichedGroup[]>([])
-const loading = ref(true)
-let fuse: Fuse<EnrichedGroup> | null = null
-let loadPromise: Promise<void> | null = null
+const groups = shallowRef<GroupDTO[]>([])
+const loading = ref(false)
+const hasMore = ref(true)
 
-function enrich(raw: any[]): EnrichedGroup[] {
-    return raw.map((song) => {
-        const diffs: EnrichedDiff[] = (song.Beatmaps ?? []).map((bm: any) => ({
-            ...bm,
-            _stars: bm.osu_mode_stars?.find((s: any) => s.int === 0)?.float ?? null,
-            _bpm: bm.timing_points?.[0]
-                ? Math.round(60000 / bm.timing_points[0].beat_length)
-                : 0,
-        }))
-        diffs.sort((a, b) => (a._stars ?? 0) - (b._stars ?? 0))
+let currentQuery = ''
+let sortBy = 'artist_name'
+let nextCursor = ''
+let requestSeq = 0
+let inFlight = false
 
-        const stars = diffs.map((d) => d._stars).filter((s): s is number => s != null)
-
-        return {
-            id: song.id,
-            beatmap_id: song.beatmap_id,
-            song_name: song.song_name,
-            artist_name: song.artist_name,
-            diffs,
-            _starsMin: stars.length ? Math.min(...stars) : null,
-            _starsMax: stars.length ? Math.max(...stars) : null,
-            _bpm: diffs[0]?._bpm ?? 0,
-            _ar: Math.max(...diffs.map((d) => d.approach_rate ?? 0)),
-            _od: Math.max(...diffs.map((d) => d.overall_difficulty ?? 0)),
-            _cs: diffs[0]?.circle_size ?? 0,
-            _hp: diffs[0]?.hp_drain ?? 0,
-            _drain: Math.max(...diffs.map((d) => d.drain_time ?? 0)),
-            _creator: diffs[0]?.creator_name ?? '',
-            _diffNames: diffs.map((d) => d.difficulty).join(' '),
-        }
+function buildParams(cursor: string, limit: number): URLSearchParams {
+    return new URLSearchParams({
+        q: currentQuery,
+        sort: sortBy,
+        limit: String(limit),
+        ...(cursor ? { cursor } : {}),
     })
 }
 
-async function ensureLoaded(): Promise<void> {
-    if (loadPromise) return loadPromise
-    loadPromise = (async () => {
-        loading.value = true
-        try {
-            const res = await fetch('/api/osu/songs')
-            const data = await res.json()
-            const enriched = enrich(data)
-            groups.value = enriched
-            fuse = new Fuse(enriched, {
-                keys: [
-                    { name: 'song_name', weight: 0.5 },
-                    { name: 'artist_name', weight: 0.35 },
-                    { name: '_diffNames', weight: 0.1 },
-                    { name: '_creator', weight: 0.05 },
-                ],
-                threshold: 0.35,
-                shouldSort: true,
-                minMatchCharLength: 2,
-            })
-        } catch (e) {
-            console.error('Failed to load osu songs catalog', e)
-        } finally {
+async function loadMore(limit = 50): Promise<void> {
+    // inFlight блокирует только повторный вызов для ТЕКУЩЕГО поиска
+    // (например, двойной скролл-триггер) — но не блокирует новый search(),
+    // тот всегда стартует новый запрос независимо от состояния предыдущего.
+    if (inFlight || !hasMore.value) return
+
+    const seq = ++requestSeq
+    inFlight = true
+    loading.value = true
+
+    try {
+        const res = await fetch(`/api/osu/songs/search?${buildParams(nextCursor, limit)}`)
+        const page = await res.json()
+        if (seq !== requestSeq) return // этот ответ устарел — новый search() уже сбросил состояние
+
+        groups.value = [...groups.value, ...page.items]
+        nextCursor = page.next_cursor ?? ''
+        hasMore.value = Boolean(page.next_cursor)
+    } catch (e) {
+        console.error('Failed to load osu songs page', e)
+        if (seq === requestSeq) hasMore.value = false
+    } finally {
+        if (seq === requestSeq) {
+            inFlight = false
             loading.value = false
         }
-    })()
-    return loadPromise
-}
-
-const FILTER_RE = /(\w+)\s*(>=|<=|>|<|=)\s*([\d.]+)/g
-
-function parseFilters(query: string) {
-    const filters: { field: string; op: string; val: number }[] = []
-    const text = query
-        .replace(FILTER_RE, (_, field, op, val) => {
-            filters.push({ field: field.toLowerCase(), op, val: parseFloat(val) })
-            return ' '
-        })
-        .trim()
-    return { filters, text }
-}
-
-function compare(v: number | null, op: string, val: number): boolean {
-    if (v == null) return false
-    if (op === '>') return v > val
-    if (op === '<') return v < val
-    if (op === '>=') return v >= val
-    if (op === '<=') return v <= val
-    if (op === '=') return v === val
-    return false
-}
-
-function matchFilter(g: EnrichedGroup, f: { field: string; op: string; val: number }) {
-    if (f.field === 'stars' || f.field === 'sr') {
-        return g.diffs.some((d) => compare(d._stars, f.op, f.val))
+        // если seq !== requestSeq — этот запрос устарел, его inFlight/loading
+        // уже обнулены в reset() ниже, трогать нечего
     }
-    const v =
-        f.field === 'ar' ? g._ar
-            : f.field === 'od' ? g._od
-                : f.field === 'cs' ? g._cs
-                    : f.field === 'hp' ? g._hp
-                        : f.field === 'bpm' ? g._bpm
-                            : f.field === 'length' || f.field === 'drain' ? g._drain
-                                : null
-    return v != null && compare(v, f.op, f.val)
+}
+
+
+function reset(): void {
+    requestSeq++
+    inFlight = false
+    loading.value = false
+    groups.value = []
+    nextCursor = ''
+    hasMore.value = true
+}
+
+/** Called on search-box input or sort change. Mods are just part of the
+ *  query text (e.g. "mode=HDDT") — the DSL parser on the backend already
+ *  extracts them, no separate field needed. */
+function search(query: string, opts?: { sort?: string }): void {
+    currentQuery = query
+    if (opts?.sort !== undefined) sortBy = opts.sort
+    reset()
+    loadMore()
+}
+
+/** The exact query text backing the current result set — pass this to
+ *  playerStore.playFromBrowse() so next/prev use the same predicate. */
+function getEffectiveQuery(): string {
+    return currentQuery
+}
+
+function getSort(): string {
+    return sortBy
 }
 
 export function useOsuCatalog() {
-    ensureLoaded()
-
-    function search(query: string): EnrichedGroup[] {
-        const { filters, text } = parseFilters(query)
-        let result = groups.value
-
-        if (filters.length) {
-            result = result.filter((g) => filters.every((f) => matchFilter(g, f)))
-        }
-
-        if (text.length >= 2 && fuse) {
-            if (filters.length === 0) {
-                result = fuse.search(text).map((r) => r.item)
-            } else {
-                const sub = new Fuse(result, {
-                    keys: [
-                        { name: 'song_name', weight: 0.5 },
-                        { name: 'artist_name', weight: 0.35 },
-                        { name: '_diffNames', weight: 0.1 },
-                        { name: '_creator', weight: 0.05 },
-                    ],
-                    threshold: 0.35,
-                    minMatchCharLength: 2,
-                })
-                result = sub.search(text).map((r) => r.item)
-            }
-        }
-
-        return result
+    if (groups.value.length === 0 && !loading.value && hasMore.value) {
+        loadMore()
     }
 
-    return { groups, loading, search }
+    return { groups, loading, hasMore, search, loadMore, getEffectiveQuery, getSort }
 }
 
-/** Диф -> Track для плеера */
-export function diffToTrack(group: EnrichedGroup, diff: EnrichedDiff): Track {
+export function diffToTrack(group: GroupDTO, diff: DiffDTO): Track {
     return {
-        id: String(diff.difficulty_id),
-        title: group.song_name,
+        id: String(diff.beatmap_id),
+        title: group.song_title,
         artist: group.artist_name,
         album: diff.difficulty,
         duration: diff.drain_time,
-        url: `/api/osu/songs/${diff.difficulty_id}/track`,
-        coverUrl: `/api/osu/bg/${group.beatmap_id}.jpg`,
-        groupKey: `${group.beatmap_id}:${diff.audio_file_name}`,
+        url: `/api/osu/songs/${diff.beatmap_id}/track`,
+        coverUrl: `/api/osu/bg/${group.beatmap_set_id}.jpg`,
+        groupKey: `${group.beatmap_set_id}:${diff.audio_file_name}`,
+        groupSetId: group.beatmap_set_id,
     }
-}
-
-/** Вся группа диффов -> Track[] (для формирования очереди next/prev) */
-export function groupToTracks(group: EnrichedGroup): Track[] {
-    return group.diffs.map((d) => diffToTrack(group, d))
 }

@@ -10,7 +10,6 @@ import (
 	"github.com/compico/go-osu/internal/http/handler/osuapi"
 	"github.com/compico/go-osu/internal/http/view"
 	"github.com/gofiber/fiber/v3"
-	"github.com/gofiber/fiber/v3/middleware/compress"
 	"github.com/gofiber/fiber/v3/middleware/static"
 )
 
@@ -75,10 +74,11 @@ type appConfigResponse struct {
 
 func (s *Server) RegisterRoutes(
 	v *view.View,
-	osuSongsHandler *osuapi.OsuSongsHandler,
 	osuSongHandler *osuapi.OsuSongHandler,
 	osuTrackStreamHandler *osuapi.OsuTrackStreamHandler,
 	osuGetBackgroundHandler *osuapi.OsuGetBackgroundHandler,
+	osuQueueAdjacentHandler *osuapi.OsuQueueAdjacentHandler,
+	osuSongsSearchHandler *osuapi.OsuSongsSearchHandler,
 ) {
 	s.apiRouter = s.app.Group("/api")
 
@@ -89,9 +89,10 @@ func (s *Server) RegisterRoutes(
 		})
 	})
 
-	s.apiRouter.Get("/osu/songs", compress.New(compress.Config{Level: compress.LevelBestSpeed}), osuSongsHandler.Handle)
 	s.apiRouter.Get("/osu/songs/:difficulty_id<int>", osuSongHandler.Handle)
 	s.apiRouter.Get("/osu/songs/:difficulty_id<int>/track", osuTrackStreamHandler.Handle)
+	s.apiRouter.Get("/osu/queue/adjacent", osuQueueAdjacentHandler.Handle)
+	s.apiRouter.Get("/osu/songs/search", osuSongsSearchHandler.Handle)
 
 	s.apiRouter.Get("/osu/bg/:beatmap_id<int>.jpg", osuGetBackgroundHandler.Handle)
 

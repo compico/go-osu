@@ -3,8 +3,16 @@ import { ref, computed } from 'vue';
 import type { Track } from '@/types/player';
 import { audioService } from '@/services/audio.service';
 
+interface QueueContext {
+    query: string
+    mods: number
+    sort: string
+}
+
+
 export const usePlayerStore = defineStore('player', () => {
     // State
+    const queueContext = ref<QueueContext | null>(null)
     const currentTrack = ref<Track | null>(null);
     const playlist = ref<Track[]>([]);
     const currentTime = ref(0);
@@ -24,6 +32,10 @@ export const usePlayerStore = defineStore('player', () => {
     });
 
     // Actions
+    const playFromBrowse = async (track: Track, context: QueueContext): Promise<void> => {
+        queueContext.value = context
+        await play(track)
+    }
     const play = async (track?: Track): Promise<void> => {
         try {
             error.value = null;
@@ -98,14 +110,24 @@ export const usePlayerStore = defineStore('player', () => {
     }
 
     const next = async (): Promise<void> => {
-        const target = findAdjacent(1);
-        if (target) await play(target);
-    };
+        if (queueContext.value) {
+            const target = await fetchAdjacent('next')
+            if (target) await play(target)
+            return
+        }
+        const target = findAdjacent(1)
+        if (target) await play(target)
+    }
 
     const previous = async (): Promise<void> => {
-        const target = findAdjacent(-1);
-        if (target) await play(target);
-    };
+        if (queueContext.value) {
+            const target = await fetchAdjacent('prev')
+            if (target) await play(target)
+            return
+        }
+        const target = findAdjacent(-1)
+        if (target) await play(target)
+    }
 
     const seek = (time: number): void => {
         audioService.seek(time);
@@ -116,11 +138,13 @@ export const usePlayerStore = defineStore('player', () => {
         playlist.value = tracks;
     };
 
+    // Явное добавление в плейлист выходит из browse-режима очереди
     const addToPlaylist = (track: Track): void => {
+        queueContext.value = null
         if (!playlist.value.find(t => t.id === track.id)) {
-            playlist.value.push(track);
+            playlist.value.push(track)
         }
-    };
+    }
 
     const removeFromPlaylist = (trackId: string): void => {
         playlist.value = playlist.value.filter(t => t.id !== trackId);
@@ -131,10 +155,11 @@ export const usePlayerStore = defineStore('player', () => {
     };
 
     const clearPlaylist = (): void => {
-        playlist.value = [];
-        stop();
-        currentTrack.value = null;
-    };
+        queueContext.value = null
+        playlist.value = []
+        stop()
+        currentTrack.value = null
+    }
 
     const setVolume = (newVolume: number): void => {
         const clampedVolume = Math.max(0, Math.min(1, newVolume));
@@ -150,6 +175,25 @@ export const usePlayerStore = defineStore('player', () => {
         isMuted.value = !isMuted.value;
         audioService.setMuted(isMuted.value);
     };
+
+    async function fetchAdjacent(dir: 'next' | 'prev'): Promise<Track | null> {
+        if (!queueContext.value || currentTrack.value?.groupSetId == null) return null
+
+        const params = new URLSearchParams({
+            q: queueContext.value.query,
+            sort: queueContext.value.sort,
+            current_set_id: String(currentTrack.value.groupSetId),
+            dir,
+        })
+
+        try {
+            const res = await fetch(`/api/osu/queue/adjacent?${params}`)
+            if (!res.ok) return null
+            return await res.json()
+        } catch {
+            return null
+        }
+    }
 
     /**
      * Вызывается один раз при старте приложения (после restore из persist).
@@ -210,6 +254,7 @@ export const usePlayerStore = defineStore('player', () => {
         isPlaying,
         isPaused,
         currentIndex,
+        playFromBrowse,
         play,
         pause,
         resume,

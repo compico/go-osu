@@ -44,17 +44,6 @@ func run(ctx context.Context, c *cli.Command) error {
 		return err
 	}
 
-	osuService, err := service.NewOsuService(cfg.Osu.Path, slogger)
-	if err != nil {
-		return err
-	}
-
-	slogger.Info("Starting reading osudb file")
-	err = osuService.ReadOsuDBFile()
-	if err != nil {
-		return err
-	}
-
 	db, err := database.New(&cfg.Database, slogger)
 	if err != nil {
 		return err
@@ -71,6 +60,12 @@ func run(ctx context.Context, c *cli.Command) error {
 	}
 
 	repos := repository.New(db)
+
+	osuService, err := service.NewOsuService(cfg.Osu.Path, slogger, repos)
+	if err != nil {
+		return err
+	}
+
 	syncService := service.NewSyncer(osuService, repos, slogger)
 
 	if err = syncService.Run(ctx); err != nil {
@@ -90,13 +85,14 @@ func run(ctx context.Context, c *cli.Command) error {
 		return err
 	}
 
-	osuSongsHandler := osuapi.NewOsuSongsHandler(osuService)
 	osuSongHandler := osuapi.NewOsuSongHandler(osuService)
 	osuTrackStreamHandler := osuapi.NewOsuTrackStreamHandler(osuService)
 	osuGetBackgroundHandler := osuapi.NewOsuGetBackgroundHandler(osuService)
+	osuQueueAdjacentHandler := osuapi.NewOsuQueueAdjacentHandler(repos)
+	osuSongsSearchHandler := osuapi.NewOsuSongsSearchHandler(repos)
 
 	http := httpserver.New(cfg, slogger)
-	http.RegisterRoutes(viteView, osuSongsHandler, osuSongHandler, osuTrackStreamHandler, osuGetBackgroundHandler)
+	http.RegisterRoutes(viteView, osuSongHandler, osuTrackStreamHandler, osuGetBackgroundHandler, osuQueueAdjacentHandler, osuSongsSearchHandler)
 
 	g, gCtx := errgroup.WithContext(ctx)
 

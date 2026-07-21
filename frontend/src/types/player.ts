@@ -7,12 +7,10 @@ export interface Track {
     album?: string;
     duration?: number;
     url: string;
-
-    // ── доп. метаданные для osu-плеера (опционально, для UI и smart next/prev) ──
     coverUrl?: string;
-    /** Ключ группы для пропуска соседних диффов одной песни в next/prev.
-     *  Обычно `${beatmap_id}:${audio_file_name}` */
     groupKey?: string;
+    /** beatmap_set_id — используется для сравнения групп и для queue/adjacent на бэкенде */
+    groupSetId?: number;
 }
 
 export interface PlayerStateRefs {

@@ -1,7 +1,7 @@
 package service
 
 import (
-	"encoding/json"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/compico/go-osu/internal/repository"
 	"github.com/compico/go-osu/pkg/osu"
 	"github.com/compico/go-osu/pkg/osu/beatmap"
 	"github.com/compico/go-osu/pkg/osu/database"
@@ -31,12 +32,14 @@ type Osu struct {
 	BeatmapDifficultyIndex map[int32]map[int32]int
 	BeatmapByDifficultyId  map[int32]int32
 	Logger                 *slog.Logger
+	repos                  *repository.Repos
 }
 
-func NewOsuService(gamePath string, logger *slog.Logger) (*Osu, error) {
+func NewOsuService(gamePath string, logger *slog.Logger, repos *repository.Repos) (*Osu, error) {
 	srv := &Osu{
 		Logger:   logger,
 		gamePath: gamePath,
+		repos:    repos,
 	}
 
 	err := srv.initGamePath()
@@ -117,31 +120,11 @@ func (o *Osu) initBackgroundPath() {
 func (o *Osu) ReadOsuDBFile() error {
 	o.dataBase = &osu.Database{}
 
-	err := database.Unmarshal(o.gamePath+"/osu!.db", o.dataBase)
-	if err != nil {
+	if err := database.Unmarshal(o.gamePath+"/osu!.db", o.dataBase); err != nil {
 		return fmt.Errorf("cannot decode osu database file: %w", err)
 	}
 
-	return o.hashing()
-}
-
-func (o *Osu) hashing() error {
-	o.BeatmapDifficultyIndex = make(map[int32]map[int32]int)
-	o.BeatmapByDifficultyId = make(map[int32]int32)
-	for i := 0; i < len(o.dataBase.Beatmaps); i++ {
-		if len(o.BeatmapDifficultyIndex[o.dataBase.Beatmaps[i].BeatmapSetID]) == 0 {
-			o.BeatmapDifficultyIndex[o.dataBase.Beatmaps[i].BeatmapSetID] = make(map[int32]int)
-		}
-		o.BeatmapDifficultyIndex[o.dataBase.Beatmaps[i].BeatmapSetID][o.dataBase.Beatmaps[i].BeatmapID] = i
-		o.BeatmapByDifficultyId[o.dataBase.Beatmaps[i].BeatmapID] = o.dataBase.Beatmaps[i].BeatmapSetID
-	}
-	o.directorySorting()
-
-	var err error
-
-	o.songsJson, err = json.Marshal(o.songs)
-
-	return err
+	return nil
 }
 
 type Directory struct {
@@ -150,44 +133,6 @@ type Directory struct {
 	SongName   string `json:"song_name"`
 	ArtistName string `json:"artist_name"`
 	Beatmaps   []osu.DatabaseBeatmap
-}
-
-func (o *Osu) directorySorting() {
-	o.songs = make([]Directory, 0)
-
-	for _, dirs := range o.BeatmapDifficultyIndex {
-		if len(dirs) < 1 {
-			continue
-		}
-
-		directory := Directory{
-			Beatmaps: make([]osu.DatabaseBeatmap, 0),
-		}
-
-		firstElement := true
-
-		for _, i := range dirs {
-			if firstElement {
-				firstElement = false
-				directory.ID = i
-				directory.BeatmapID = o.dataBase.Beatmaps[i].BeatmapSetID
-				directory.SongName = o.dataBase.Beatmaps[i].SongTitle
-				directory.ArtistName = o.dataBase.Beatmaps[i].ArtistName
-			}
-
-			directory.Beatmaps = append(directory.Beatmaps, o.dataBase.Beatmaps[i])
-		}
-
-		o.songs = append(o.songs, directory)
-	}
-}
-
-func (o *Osu) GetSongs() []Directory {
-	return o.songs
-}
-
-func (o *Osu) GetSongsJson() []byte {
-	return o.songsJson
 }
 
 func (o *Osu) GetBeatmapByDifficultyId(difficultyId int32) (*osu.Beatmap, error) {
@@ -208,26 +153,13 @@ func (o *Osu) GetBeatmapByDifficultyId(difficultyId int32) (*osu.Beatmap, error)
 	return nil, fmt.Errorf("cannot find beatmap by difficultyId: %v", difficultyId)
 }
 
-func (o *Osu) GetTrackPathByDifficultyId(difficultyId int32) (string, error) {
-	if index, err := o.getIndexByDifficultyId(difficultyId); err == nil {
-		bmFromDb := o.dataBase.Beatmaps[index]
-
-		path := o.GetOsuFilePath(bmFromDb)
-
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return "", err
-		}
-
-		bm := &osu.Beatmap{}
-		if err := beatmap.Unmarshal(data, bm); err != nil {
-			return "", err
-		}
-
-		return filepath.Join(o.songsPath, bmFromDb.FolderName, bm.AudioFilename), nil
-	} else {
+func (o *Osu) GetTrackPathByDifficultyId(ctx context.Context, difficultyId int32) (string, error) {
+	bm, err := o.repos.Beatmaps.Get(ctx, difficultyId)
+	if err != nil {
 		return "", err
 	}
+
+	return filepath.Join(o.songsPath, bm.FolderName, bm.AudioFileName), nil
 }
 
 func (o *Osu) GetOsuFilePath(bm osu.DatabaseBeatmap) string {

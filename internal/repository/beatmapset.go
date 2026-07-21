@@ -27,3 +27,12 @@ func (r *BeatmapSetRepo) List(ctx context.Context) ([]model.BeatmapSet, error) {
 	}
 	return sets, nil
 }
+
+func (r *BeatmapSetRepo) Get(ctx context.Context, beatmapSetID int32) (*model.BeatmapSet, error) {
+	var set model.BeatmapSet
+	err := r.db.GetContext(ctx, &set, `SELECT * FROM beatmapsets WHERE beatmap_set_id = ?`, beatmapSetID)
+	if err != nil {
+		return nil, fmt.Errorf("get beatmapset %d: %w", beatmapSetID, err)
+	}
+	return &set, nil
+}

@@ -2,7 +2,6 @@ package osuapi
 
 import (
 	"path/filepath"
-	"strconv"
 
 	"github.com/compico/go-osu/internal/service"
 	"github.com/gofiber/fiber/v3"
@@ -17,13 +16,12 @@ func NewOsuTrackStreamHandler(service *service.Osu) *OsuTrackStreamHandler {
 }
 
 func (h *OsuTrackStreamHandler) Handle(ctx fiber.Ctx) error {
-	difficultyID := ctx.Params("difficulty_id")
-	diffID, err := strconv.Atoi(difficultyID)
-	if err != nil {
-		return ctx.Status(fiber.StatusBadRequest).SendString("Invalid difficulty_id")
+	diffID := fiber.Params[int32](ctx, "difficulty_id", -100)
+	if diffID == -100 {
+		return fiber.NewError(400, "Invalid difficulty_id")
 	}
 
-	filePath, err := h.osuService.GetTrackPathByDifficultyId(int32(diffID))
+	filePath, err := h.osuService.GetTrackPathByDifficultyId(ctx, diffID)
 	if err != nil {
 		return ctx.Status(fiber.StatusNotFound).SendString("Track not found")
 	}

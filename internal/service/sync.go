@@ -13,7 +13,6 @@ import (
 
 	"github.com/compico/go-osu/internal/model"
 	"github.com/compico/go-osu/internal/repository"
-	"github.com/compico/go-osu/pkg/dynamic_semaphore"
 	"github.com/compico/go-osu/pkg/osu"
 	"github.com/compico/go-osu/pkg/osu/skills"
 )
@@ -34,16 +33,38 @@ const skillLogEvery = 200
 // A hang here (degenerate slider math, bad timing points, etc.) would
 // otherwise permanently occupy a worker slot and eventually stall the
 // whole sync once enough workers are stuck on bad maps.
-const defaultSkillCalcTimeout = 10 * time.Second
+//
+// NOTE: this budget is for the *whole* beatmap (all mod combinations
+// combined), not per combination. It must comfortably cover 36
+// (len(DefaultModCombinations)) sequential skill calculations under
+// worst-case CPU contention from sibling workers. If you see timeouts on
+// maps that pass in isolation, this is the first thing to check/raise —
+// don't "fix" it by growing concurrency instead (see defaultConcurrency).
+const defaultSkillCalcTimeout = 30 * time.Second
 
-const defaultElasticGrowAfter = 10 * time.Second
-
-// defaultConcurrency intentionally undercuts runtime.NumCPU() — running
-// fewer beatmaps in parallel means a stuck one blocks fewer workers at
-// once and leaves headroom for the rest of the system while a multi-hour
-// sync is running.
+// defaultConcurrency sets the number of beatmaps processed in parallel.
+//
+// Skill calculation is CPU-bound (pure math over hit objects/timing
+// points, no I/O, no blocking) — every worker actively competes for a
+// CPU core the entire time it runs, unlike an I/O-bound worker that
+// mostly sits idle waiting on a socket or disk. Oversubscribing a
+// CPU-bound pool (running more active workers than cores) doesn't
+// increase throughput; it just adds scheduler contention, and — for a
+// task with a wall-clock timeout — silently inflates real per-beatmap
+// runtime until otherwise-healthy maps start blowing through
+// skillCalcTimeout under load, even though they'd finish in a second or
+// two in isolation. This was exactly what a previous version of this
+// file did with `runtime.NumCPU() * 2`, and it compounded with a
+// permanent-elastic-grow semaphore into a feedback loop: more
+// contention -> more false-timeout "abandoned" goroutines still burning
+// CPU in the background -> even more contention.
+//
+// GOMAXPROCS (usually == NumCPU) is the right ceiling for a CPU-bound
+// pool. We leave one core free for the writer goroutine, watchdog,
+// runtime/GC, and the rest of the system, since this typically runs
+// for a long time in the background alongside other work.
 func defaultConcurrency() int {
-	n := runtime.NumCPU() * 2
+	n := runtime.GOMAXPROCS(0) - 1
 	if n < 1 {
 		n = 1
 	}
@@ -66,7 +87,6 @@ type Syncer struct {
 
 	concurrency      int
 	skillCalcTimeout time.Duration
-	elasticGrowAfter time.Duration
 }
 
 type SyncerOption func(*Syncer)
@@ -83,14 +103,6 @@ func WithSkillCalcTimeout(d time.Duration) SyncerOption {
 	return func(s *Syncer) {
 		if d > 0 {
 			s.skillCalcTimeout = d
-		}
-	}
-}
-
-func WithElasticGrowAfter(d time.Duration) SyncerOption {
-	return func(s *Syncer) {
-		if d > 0 {
-			s.elasticGrowAfter = d
 		}
 	}
 }
@@ -112,7 +124,6 @@ func NewSyncer(osuSvc *Osu, repos *repository.Repos, logger *slog.Logger, opts .
 		vars:             skills.DefaultVars(),
 		concurrency:      defaultConcurrency(),
 		skillCalcTimeout: defaultSkillCalcTimeout,
-		elasticGrowAfter: defaultElasticGrowAfter,
 	}
 
 	for _, opt := range opts {
@@ -127,7 +138,7 @@ func NewSyncer(osuSvc *Osu, repos *repository.Repos, logger *slog.Logger, opts .
 //  2. map rows into model.BeatmapSet / model.Beatmap
 //  3. diff MD5 hashes against what's already stored to find changed/new maps
 //  4. for changed maps only: parse the .osu file and compute Skills for
-//     every mod combination via skills.CalculateAllSkillsForMods
+//     every mod combination via skills.ProcessBeatmap
 //  5. persist everything, then drop rows for maps no longer present
 func (s *Syncer) Run(ctx context.Context) error {
 	runStart := time.Now()
@@ -177,19 +188,13 @@ func (s *Syncer) Run(ctx context.Context) error {
 
 	if len(changed) > 0 {
 		step = time.Now()
-		starRatings, skipped := s.computeChanged(ctx, changed)
+		skipped := s.computeChanged(ctx, changed)
 		s.logger.Info("skill calc done",
 			"beatmaps", len(changed),
 			"skipped_timeout", skipped,
 			"mod_combinations", len(s.modCombinations),
 			"took", time.Since(step),
 		)
-
-		for i, bm := range beatmaps {
-			if sr, ok := starRatings[bm.BeatmapID]; ok {
-				beatmaps[i].StarsNoMod = sr
-			}
-		}
 	} else {
 		s.logger.Info("no changed beatmaps, skipping skill calc")
 	}
@@ -211,6 +216,8 @@ func (s *Syncer) Run(ctx context.Context) error {
 	s.logger.Info("pruned missing beatmaps", "took", time.Since(step))
 
 	s.logger.Info("sync finished", "took", time.Since(runStart))
+
+	s.logger.Info("goroutine count after sync", "count", runtime.NumGoroutine())
 
 	return nil
 }
@@ -282,6 +289,13 @@ func (s *Syncer) mapRawBeatmaps(raw []osu.DatabaseBeatmap) ([]model.BeatmapSet, 
 			continue
 		}
 
+		stars := 0.0
+		for _, star := range bm.OsuModeStars {
+			if star.Int == 0 {
+				stars = float64(star.Float)
+			}
+		}
+
 		beatmaps = append(beatmaps, model.Beatmap{
 			BeatmapID:    bm.BeatmapID,
 			BeatmapSetID: bm.BeatmapSetID,
@@ -293,15 +307,15 @@ func (s *Syncer) mapRawBeatmaps(raw []osu.DatabaseBeatmap) ([]model.BeatmapSet, 
 			AudioFileName:    bm.AudioFileName,
 			TitleFont:        bm.TitleFont,
 
-			ApproachRate:      float64(bm.ApproachRate),
-			CircleSize:        float64(bm.CircleSize),
-			HPDrain:           float64(bm.HPDrain),
-			OverallDifficulty: float64(bm.OverallDifficulty),
+			ApproachRate:      bm.ApproachRate,
+			CircleSize:        bm.CircleSize,
+			HPDrain:           bm.HPDrain,
+			OverallDifficulty: bm.OverallDifficulty,
 			SliderVelocity:    bm.SliderVelocity,
-			StackLeniency:     float64(bm.StackLeniency),
+			StackLeniency:     bm.StackLeniency,
 
 			BPM:        dominantBPM(bm.TimingPoints, bm.TotalTime),
-			StarsNoMod: 0,
+			StarsNoMod: stars,
 
 			DrainTime:            bm.DrainTime,
 			TotalTime:            bm.TotalTime,
@@ -377,27 +391,33 @@ func dominantBPM(points []osu.DatabaseTimingPoint, totalTimeMs int32) float64 {
 	return math.Round(best)
 }
 
-// computeChanged runs skill calc for every changed beatmap with bounded
-// concurrency (s.concurrency workers). Each beatmap gets s.skillCalcTimeout
-// to finish all mod combinations; if it doesn't, the worker slot is freed
-// and the sync moves on — the underlying goroutine is abandoned (leaked)
-// rather than killed, since Go has no way to force-stop a running
-// goroutine. This is safe: it never writes to a closed channel (rows is
-// never closed) and never panics, it just wastes CPU in the background
-// for the remainder of the process lifetime.
+// computeChanged runs skill calc for every changed beatmap with bounded,
+// static concurrency (s.concurrency workers — sized for CPU-bound work,
+// see defaultConcurrency). Each beatmap gets s.skillCalcTimeout to finish
+// all mod combinations, enforced via context cancellation that is checked
+// *between* mod combinations (computeOneBeatmap), so a slow-but-not-hung
+// beatmap actually stops doing work once cancelled instead of merely being
+// abandoned by the caller.
+//
+// The only remaining leak case is a single mod combination that itself
+// hangs forever inside skills.ProcessBeatmap — Go has no way to
+// force-stop a running goroutine, and we don't control that function's
+// internals here. If that happens the inner goroutine keeps running in
+// the background for the rest of the process lifetime, same as before.
+// With concurrency now matched to actual CPU capacity (instead of 2x
+// oversubscribed) this should now be a rare, genuine "this map is
+// pathological" case rather than routine false-timeouts caused by
+// contention — if you still see repeated timeouts on maps that pass in
+// isolation, raise skillCalcTimeout before suspecting this pool again.
 //
 // A watchdog goroutine logs any beatmap still in flight past
 // watchdogWarnAfter every watchdogInterval, so a stuck map shows up in the
 // logs live instead of only being discovered once its own timeout fires.
-func (s *Syncer) computeChanged(ctx context.Context, changed []osu.DatabaseBeatmap) (map[int32]float64, int64) {
+func (s *Syncer) computeChanged(ctx context.Context, changed []osu.DatabaseBeatmap) int64 {
 	total := len(changed)
-
-	starRatings := make(map[int32]float64, total)
-	var starMu sync.Mutex
 
 	var done atomic.Int64
 	var skipped atomic.Int64
-	var grown atomic.Int64
 
 	rows := make(chan model.SkillCache, 4096)
 	writerStop := make(chan struct{})
@@ -408,42 +428,29 @@ func (s *Syncer) computeChanged(ctx context.Context, changed []osu.DatabaseBeatm
 	watchdogStop := make(chan struct{})
 	go s.watchdog(inFlight, watchdogStop)
 
-	sem := dynamic_semaphore.NewDynamicSemaphore(s.concurrency)
+	// Static semaphore sized for CPU-bound work — deliberately does NOT
+	// grow. Growing the number of *active* CPU-bound workers under load
+	// makes contention worse, not better (see defaultConcurrency doc).
+	sem := make(chan struct{}, s.concurrency)
 	var wg sync.WaitGroup
 
+loop:
 	for _, dbBm := range changed {
 		select {
 		case <-ctx.Done():
-			goto drain
-		default:
+			break loop
+		case sem <- struct{}{}:
 		}
 
-		sem.Acquire()
 		wg.Add(1)
 		go func(dbBm osu.DatabaseBeatmap) {
 			defer wg.Done()
+			defer func() { <-sem }()
 
 			inFlight.start(dbBm.BeatmapID, dbBm.FolderName)
 			defer inFlight.finish(dbBm.BeatmapID)
 
-			// elasticGrowTimer: if this beatmap is still running past
-			// elasticGrowAfter, permanently open up one extra slot so a
-			// short map queued behind it isn't stuck waiting on it —
-			// this is exactly the marathon-blocks-the-queue case.
-			growTimer := time.AfterFunc(s.elasticGrowAfter, func() {
-				sem.Grow(1)
-				grown.Add(1)
-				s.logger.Warn("beatmap running long, growing concurrency by 1",
-					"beatmap_id", dbBm.BeatmapID,
-					"after", s.elasticGrowAfter,
-				)
-			})
-
-			timedOut := s.computeOneBeatmap(dbBm, rows, &starMu, starRatings)
-
-			growTimer.Stop() // no-op if it already fired — grow is permanent either way
-			sem.Release()
-
+			timedOut := s.computeOneBeatmap(ctx, dbBm, rows)
 			if timedOut {
 				skipped.Add(1)
 			}
@@ -452,22 +459,25 @@ func (s *Syncer) computeChanged(ctx context.Context, changed []osu.DatabaseBeatm
 		}(dbBm)
 	}
 
-drain:
 	wg.Wait()
 	close(watchdogStop)
 
 	close(writerStop)
 	<-writerDone
 
-	s.logger.Info("elastic concurrency growth", "times_grown", grown.Load())
-
-	return starRatings, skipped.Load()
+	return skipped.Load()
 }
 
 // computeOneBeatmap parses the .osu file and computes Skills for every mod
-// combination, bailing out after s.skillCalcTimeout. Returns true if it
-// timed out (the inner goroutine is left running in the background).
-func (s *Syncer) computeOneBeatmap(dbBm osu.DatabaseBeatmap, rows chan<- model.SkillCache, starMu *sync.Mutex, starRatings map[int32]float64) bool {
+// combination, bailing out after s.skillCalcTimeout. Cancellation is
+// checked between mod combinations, so a beatmap that's merely slow (not
+// hung) actually stops doing further work once its budget runs out,
+// rather than continuing to burn CPU in the background after being
+// reported as timed out. Returns true if it timed out.
+func (s *Syncer) computeOneBeatmap(parent context.Context, dbBm osu.DatabaseBeatmap, rows chan<- model.SkillCache) bool {
+	ctx, cancel := context.WithTimeout(parent, s.skillCalcTimeout)
+	defer cancel()
+
 	doneCh := make(chan struct{})
 
 	go func() {
@@ -480,29 +490,25 @@ func (s *Syncer) computeOneBeatmap(dbBm osu.DatabaseBeatmap, rows chan<- model.S
 			return
 		}
 
+		md5Hash, err := model.ParseMD5Hash(dbBm.MD5Hash)
+		if err != nil {
+			s.logger.Warn("skipping beatmap, invalid md5 hash", "beatmap_id", dbBm.BeatmapID, "error", err)
+			return
+		}
+
 		for _, mods := range s.modCombinations {
-			result, err := skills.CalculateAllSkillsForMods(full, mods, s.vars)
-			if err != nil {
-				s.logger.Warn("skill calc failed for beatmap",
-					"beatmap_id", dbBm.BeatmapID, "mods", mods, "error", err)
-				continue
+			// Checked between combinations rather than only once up
+			// front, so cancellation partway through a beatmap's 36
+			// combinations still stops the remaining work instead of
+			// running them to completion after the deadline.
+			if ctx.Err() != nil {
+				return
 			}
 
-			if mods == 0 {
-				starMu.Lock()
-				starRatings[dbBm.BeatmapID] = aggregateStarRating(result.Skills)
-				starMu.Unlock()
-			}
+			result := skills.ProcessBeatmap(full, mods, s.vars)
 
-			md5Hash, err := model.ParseMD5Hash(dbBm.MD5Hash)
-			if err != nil {
-				s.logger.Warn("skipping beatmap, invalid md5 hash", "beatmap_id", dbBm.BeatmapID, "error", err)
-				continue
-			}
-
-			// rows is never closed, so this is safe to block on even if
-			// the outer call already gave up and moved on.
-			rows <- model.SkillCache{
+			select {
+			case rows <- model.SkillCache{
 				BeatmapID: dbBm.BeatmapID,
 				Mods:      int32(mods),
 				MD5Hash:   md5Hash,
@@ -514,6 +520,12 @@ func (s *Syncer) computeOneBeatmap(dbBm osu.DatabaseBeatmap, rows chan<- model.S
 				Memory:    result.Skills.Memory,
 				Accuracy:  result.Skills.Accuracy,
 				Reaction:  result.Skills.Reaction,
+			}:
+			case <-ctx.Done():
+				// Caller gave up (or process is shutting down) while we
+				// were about to enqueue a row — don't block forever on a
+				// full channel, just stop.
+				return
 			}
 		}
 	}()
@@ -521,8 +533,8 @@ func (s *Syncer) computeOneBeatmap(dbBm osu.DatabaseBeatmap, rows chan<- model.S
 	select {
 	case <-doneCh:
 		return false
-	case <-time.After(s.skillCalcTimeout):
-		s.logger.Error("beatmap skill calc timed out, abandoning and moving on",
+	case <-ctx.Done():
+		s.logger.Error("beatmap skill calc timed out, cancelling",
 			"beatmap_id", dbBm.BeatmapID,
 			"folder", dbBm.FolderName,
 			"file", dbBm.NameOfTheOsuFile,
@@ -535,9 +547,7 @@ func (s *Syncer) computeOneBeatmap(dbBm osu.DatabaseBeatmap, rows chan<- model.S
 // skillCacheWriter is the single writer for skill_cache rows, batching
 // writes at writeChunkSize. It keeps draining rows after writerStop fires
 // until the channel is empty (non-blocking drain), then does a final
-// flush — this lets any already-queued rows from normal (non-timed-out)
-// beatmaps land, while abandoned/leaked goroutines that keep trying to
-// send afterward simply block forever on their own, harmlessly.
+// flush.
 func (s *Syncer) skillCacheWriter(ctx context.Context, rows <-chan model.SkillCache, stop <-chan struct{}, done chan<- struct{}) {
 	defer close(done)
 
@@ -649,13 +659,4 @@ func (s *Syncer) watchdog(tracker *inFlightTracker, stop <-chan struct{}) {
 			}
 		}
 	}
-}
-
-func aggregateStarRating(sk skills.Skills) float64 {
-	avg := (sk.Stamina + sk.Tenacity + sk.Agility + sk.Precision +
-		sk.Reading + sk.Memory + sk.Accuracy + sk.Reaction) / 8
-
-	k := 0.1
-
-	return 20 * (1 - math.Exp(-k*avg))
 }

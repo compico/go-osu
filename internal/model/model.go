@@ -27,12 +27,12 @@ type Beatmap struct {
 	AudioFileName    string  `db:"audio_file_name"`
 	TitleFont        string  `db:"title_font"`
 
-	ApproachRate      float64 `db:"approach_rate"`
-	CircleSize        float64 `db:"circle_size"`
-	HPDrain           float64 `db:"hp_drain"`
-	OverallDifficulty float64 `db:"overall_difficulty"`
+	ApproachRate      float32 `db:"approach_rate"`
+	CircleSize        float32 `db:"circle_size"`
+	HPDrain           float32 `db:"hp_drain"`
+	OverallDifficulty float32 `db:"overall_difficulty"`
 	SliderVelocity    float64 `db:"slider_velocity"`
-	StackLeniency     float64 `db:"stack_leniency"`
+	StackLeniency     float32 `db:"stack_leniency"`
 
 	BPM        float64 `db:"bpm"`
 	StarsNoMod float64 `db:"stars_nomod"`
