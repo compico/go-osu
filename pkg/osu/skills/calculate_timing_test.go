@@ -34,13 +34,13 @@ const maxHangsPerFile = 3
 
 var allModCombinations = DefaultModCombinations()
 
-// TestCalculateAllSkillsForMods_StepTiming_AllMods runs every step of
-// CalculateAllSkillsForMods for every mod combination against every map in
+// TestProcessBeatmap_StepTiming_AllMods runs every step of
+// ProcessBeatmap for every mod combination against every map in
 // test_data, summing each step's duration across mods and reporting which
 // specific mod combinations (if any) cause a step to hang — so you can
 // tell whether a slow/stuck map is mod-specific (e.g. only DT/HT alter
 // timing enough to trigger it) or happens regardless of mods.
-func TestCalculateAllSkillsForMods_StepTiming_AllMods(t *testing.T) {
+func TestProcessBeatmap_StepTiming_AllMods(t *testing.T) {
 	files, err := getOsuFiles()
 	if err != nil {
 		t.Fatal(err)
@@ -94,7 +94,7 @@ func TestCalculateAllSkillsForMods_StepTiming_AllMods(t *testing.T) {
 
 				if stepOK {
 					stepOK = stepOK && runStepAllMods(t, "PrepareMapData", modsLabel, totals, counts, hangs, func() {
-						PrepareMapData(md)
+						prepareMapData(md)
 					})
 				}
 				if stepOK {
@@ -109,7 +109,7 @@ func TestCalculateAllSkillsForMods_StepTiming_AllMods(t *testing.T) {
 				}
 				if stepOK {
 					stepOK = stepOK && runStepAllMods(t, "CalculateAimStrains", modsLabel, totals, counts, hangs, func() {
-						CalculateAimStrains(md, vars)
+						calculateAimStrains(md, vars)
 					})
 				}
 				if stepOK {
@@ -124,12 +124,12 @@ func TestCalculateAllSkillsForMods_StepTiming_AllMods(t *testing.T) {
 				}
 				if stepOK {
 					stepOK = stepOK && runStepAllMods(t, "CalculateReading", modsLabel, totals, counts, hangs, func() {
-						CalculateReading(md, vars, mods&osu.HD != 0)
+						CalculateReading(md, vars, md.HasMod(osu.HD))
 					})
 				}
 				if stepOK {
 					stepOK = stepOK && runStepAllMods(t, "CalculateReaction", modsLabel, totals, counts, hangs, func() {
-						CalculateReaction(md, vars)
+						CalculateReaction(md, vars, md.HasMod(osu.HD))
 					})
 				}
 				if stepOK {

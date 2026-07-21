@@ -55,7 +55,6 @@ func CalculateReading(md *MapData, vars *Vars, hidden bool) {
 	// weighted-value formula below, so it's dropped as dead code. (It was
 	// also technically UB on an empty readingStrains, e.g. a 0- or 1-note
 	// map, since std::max_element on an empty range can't be dereferenced.)
-
 	topWeights := getPeakVals(md.ReadingStrains)
 
 	md.Skills.Reading = getWeightedValue2(topWeights, vars.Get("Reading", "Weighting"))
@@ -220,10 +219,10 @@ func getOpacityAt(point *ReadingPoint, time int, ar float64, hidden bool) float6
 	}
 
 	fadeInStartTime := float64(point.Preempt)
-	fadeInDuration := math.Min(arToMs(ar), 400)
+	fadeInDuration := math.Min(float64(arToMs(ar)), 400)
 
 	if hidden {
-		fadeInDuration = 0.4 * arToMs(ar)
+		fadeInDuration = 0.4 * float64(arToMs(ar))
 		fadeOutStartTime := float64(point.FadeOut)
 		fadeOutDuration := float64(point.Preempt) * readingFadeOutDurationMultiplier
 

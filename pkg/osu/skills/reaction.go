@@ -2,92 +2,99 @@ package skills
 
 import (
 	"math"
+
+	"github.com/compico/go-osu/pkg/osu"
 )
 
-// Константы из reaction.cpp
-const (
-	reactionStrainDecayBase = 0.3
-	reactionMinInterval     = 50.0
-	reactionMaxInterval     = 500.0
+// reactionConstA, reactionConstB precompute the two magic constants from
+// react2Skill in reaction.cpp:
+//
+//	a = pow(2, log(78608/15625)/log(34/25)) * pow(125, log(68/25)/log(34/25))
+//	b = log(2) / (log(2) - 2*log(5) + log(17))
+//
+// See https://www.desmos.com/calculator/lg2jqyesnu
+var (
+	reactionConstA = math.Pow(2.0, math.Log(78608.0/15625.0)/math.Log(34.0/25.0)) *
+		math.Pow(125.0, math.Log(68.0/25.0)/math.Log(34.0/25.0))
+	reactionConstB = math.Log(2.0) / (math.Log(2.0) - 2.0*math.Log(5.0) + math.Log(17.0))
 )
 
-// CalculateReaction портирует reaction.cpp's CalculateReaction.
-// Оценивает скорость реакции игрока на основе AR и плотности объектов.
-// Требует md.AimPoints (заполняются в gatherAimPoints).
-func CalculateReaction(md *MapData, vars *Vars) {
-	n := len(md.AimPoints)
-	if n == 0 {
-		md.Skills.Reaction = 0
-		return
-	}
-
-	ar := md.Map.ApproachRate
-	preemptMs := arToMs(ar)
-
-	strain := 0.0
-	md.ReactionStrains = make([]float64, n)
-
-	for i := 0; i < n; i++ {
-		diff := calculateReactionDifficulty(md, i, preemptMs)
-
-		decay := 0.0
-		if i > 0 {
-			prevInterval := float64(md.AimPoints[i].Time - md.AimPoints[i-1].Time)
-			decay = math.Pow(reactionStrainDecayBase, prevInterval/1000.0)
-		}
-
-		strain = strain*decay + diff
-		md.ReactionStrains[i] = strain
-	}
-
-	topWeights := getPeakVals(md.ReactionStrains)
-
-	md.Skills.Reaction = getWeightedValue2(topWeights, vars.Get("Reaction", "Weighting"))
-	md.Skills.Reaction = vars.Get("Reaction", "TotalMult") * math.Pow(md.Skills.Reaction, vars.Get("Reaction", "TotalPow"))
+// react2Skill ports reaction.cpp's react2Skill.
+func react2Skill(timeToReact float64) float64 {
+	return reactionConstA / math.Pow(timeToReact, reactionConstB)
 }
 
-// calculateReactionDifficulty оценивает сложность реакции для конкретной точки.
-func calculateReactionDifficulty(md *MapData, index int, preemptMs float64) float64 {
-	if index == 0 {
-		return 0
+// patternReq ports reaction.cpp's PatternReq.
+func patternReq(p1, p2, p3 TargetPoint, csPx float64) float64 {
+	dist := p1.Pos.DistanceFrom(p2.Pos) + p2.Pos.DistanceFrom(p3.Pos)
+	angle := getAngle(p1.Pos, p2.Pos, p3.Pos)
+
+	t := math.Abs(p3.Time - p1.Time)
+	if t < 16 { // 16ms @ 60 FPS
+		t = 16
 	}
 
-	diff := 0.0
+	// 2 * csPx = 1 diameter of CS since CS here is being calculated in terms of radius.
+	return t / ((dist / (2 * csPx)) * ((math.Pi - angle) / math.Pi))
+}
 
-	// 1. Сложность AR (меньше времени на реакцию = сложнее)
-	// AR 0-10 → preempt 1800-450ms
-	// Нормализуем к диапазону [0, 1], где 1 = самый высокий AR
-	arDifficulty := 1.0 - (preemptMs-450.0)/(1800.0-450.0)
-	arDifficulty = clampVal(arDifficulty, 0.0, 1.0)
+// pattern2Reaction ports reaction.cpp's Pattern2Reaction.
+// See https://www.desmos.com/calculator/k9r2uipjfq
+func pattern2Reaction(p1, p2, p3 TargetPoint, arMs, csPx float64, vars *Vars) float64 {
+	damping := vars.Get("Reaction", "PatternDamping")
+	patReq := patternReq(p1, p2, p3, csPx)
 
-	// 2. Сложность интервала (быстрые последовательности сложнее)
-	interval := float64(md.AimPoints[index].Time - md.AimPoints[index-1].Time)
-	if interval > 0 {
-		normalizedInterval := clampVal(interval, reactionMinInterval, reactionMaxInterval)
-		normalizedInterval = (reactionMaxInterval - normalizedInterval) / (reactionMaxInterval - reactionMinInterval)
-		intervalDifficulty := math.Pow(normalizedInterval, 1.5)
-		diff += intervalDifficulty * 2.0
-	}
+	return arMs - arMs*math.Exp(-damping*patReq)
+}
 
-	// 3. Сложность плотности (больше объектов в зоне видимости = сложнее)
-	// Считаем количество объектов в окне видимости (preemptMs)
-	visibleCount := 0
-	for i := index; i >= 0; i-- {
-		timeDiff := float64(md.AimPoints[index].Time - md.AimPoints[i].Time)
-		if timeDiff > preemptMs {
-			break
+// getReactionSkillAt ports reaction.cpp's getReactionSkillAt.
+func getReactionSkillAt(targetPoints []TargetPoint, targetPoint TargetPoint, hitobjects []osu.HitObject, ar, cs float64, hidden bool, vars *Vars) float64 {
+	fadeInReactReq := vars.Get("Reaction", "FadeinPercent") // players can react once the note is 10% faded in
+	timeToReact := 0.0
+	index := findTimingAt(targetPoints, targetPoint.Time)
+
+	if index >= len(targetPoints)-2 {
+		timeToReact = arToMS(ar)
+	} else if index < 3 {
+		visibilityTimes := getVisibilityTimes(hitobjects[0], ar, hidden, fadeInReactReq, 1.0)
+		timeToReact = float64(hitobjects[0].Time - visibilityTimes.first)
+	} else {
+		t1 := targetPoints[index]
+		t2 := targetPoints[index+1]
+		t3 := targetPoints[index+2]
+
+		timeSinceStart := 0
+		if targetPoint.Press {
+			timeSinceStart = absInt(int(targetPoint.Time) - hitobjects[targetPoint.Key].Time)
 		}
-		visibleCount++
+
+		visibilityTimes := getVisibilityTimes(hitobjects[0], ar, hidden, fadeInReactReq, 1.0)
+		actualArTime := (hitobjects[0].Time - visibilityTimes.first) + timeSinceStart
+
+		result := pattern2Reaction(t1, t2, t3, float64(actualArTime), float64(cs2px(cs)), vars)
+		timeToReact = math.Sqrt(timeToReact*timeToReact + result*result)
 	}
 
-	if visibleCount > 1 {
-		// Чем больше объектов видно одновременно, тем сложнее
-		densityDifficulty := math.Pow(float64(visibleCount), 1.2)
-		diff += densityDifficulty * 1.5
+	return vars.Get("Reaction", "VerScale") * math.Pow(react2Skill(timeToReact), vars.Get("Reaction", "CurveExp"))
+}
+
+// CalculateReaction ports reaction.cpp's CalculateReaction.
+// Requires md.TargetPoints (populated by gatherTargetPoints).
+func CalculateReaction(md *MapData, vars *Vars, hidden bool) {
+	mx := 0.0
+	avg := 0.0
+	weight := vars.Get("Reaction", "AvgWeighting")
+
+	for _, tick := range md.TargetPoints {
+		val := getReactionSkillAt(md.TargetPoints, tick, md.Map.HitObjects, md.Map.CircleSize, md.Map.ApproachRate, hidden, vars)
+
+		if val > mx {
+			mx = val
+		}
+		if val > mx/2.0 {
+			avg = weight*val + (1-weight)*avg
+		}
 	}
 
-	// Применяем множитель AR
-	diff *= (1.0 + arDifficulty*3.0)
-
-	return diff
+	md.Skills.Reaction = (mx + avg) / 2.0
 }

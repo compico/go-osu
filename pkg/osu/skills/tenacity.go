@@ -4,99 +4,62 @@ import (
 	"math"
 )
 
-// Константы из tenacity.cpp
-const (
-	tenacityStreamThreshold = 125.0 // Максимальный интервал для стрима (ms)
-	tenacityBurstThreshold  = 75.0  // Максимальный интервал для батрста (ms)
-	tenacityMinStreamLength = 3     // Минимальная длина стрима (количество интервалов)
-	tenacityStrainDecayBase = 0.3
-)
-
 // CalculateTenacity портирует tenacity.cpp's CalculateTenacity.
-// Требует md.PressIntervals (заполняется в gatherTapIntervals).
+// Рассчитывает способность к быстрому тапу (streams и bursts).
+// Требует md.Streams (заполняется в prepareMapData).
 func CalculateTenacity(md *MapData, vars *Vars) {
-	n := len(md.PressIntervals)
-	if n == 0 {
+	longestStream := getLongestStream(md.Streams)
+
+	if longestStream.Length == 0 {
 		md.Skills.Tenacity = 0
 		return
 	}
 
-	strain := 0.0
-	md.TenacityStrains = make([]float64, n)
+	// intervalScaled = 1.0 / pow(interval, pow(interval, IntervalPow) * IntervalMult) * IntervalMult2
+	intervalPow := vars.Get("Tenacity", "IntervalPow")
+	intervalMult := vars.Get("Tenacity", "IntervalMult")
+	intervalMult2 := vars.Get("Tenacity", "IntervalMult2")
 
-	for i := 0; i < n; i++ {
-		diff := calculateTenacityDifficulty(md.PressIntervals, i)
+	exponent := math.Pow(float64(longestStream.Interval), intervalPow) * intervalMult
+	intervalScaled := 1.0 / math.Pow(float64(longestStream.Interval), exponent) * intervalMult2
 
-		decay := 0.0
-		if i > 0 {
-			prevInterval := float64(md.PressIntervals[i-1])
-			decay = math.Pow(tenacityStrainDecayBase, prevInterval/1000.0)
-		}
+	// lengthScaled = pow(LengthDivisor / length, (LengthDivisor / length) * LengthMult)
+	lengthDivisor := vars.Get("Tenacity", "LengthDivisor")
+	lengthMult := vars.Get("Tenacity", "LengthMult")
 
-		strain = strain*decay + diff
-		md.TenacityStrains[i] = strain
-	}
+	lengthBase := lengthDivisor / float64(longestStream.Length)
+	lengthScaled := math.Pow(lengthBase, lengthBase*lengthMult)
 
-	topWeights := getPeakVals(md.TenacityStrains)
+	// tenacity = intervalScaled * lengthScaled
+	tenacity := intervalScaled * lengthScaled
 
-	md.Skills.Tenacity = getWeightedValue2(topWeights, vars.Get("Tenacity", "Weighting"))
-	md.Skills.Tenacity = vars.Get("Tenacity", "TotalMult") * math.Pow(md.Skills.Tenacity, vars.Get("Tenacity", "TotalPow"))
+	// Применяем финальный множитель
+	totalMult := vars.Get("Tenacity", "TotalMult")
+	totalPow := vars.Get("Tenacity", "TotalPow")
+	md.Skills.Tenacity = totalMult * math.Pow(tenacity, totalPow)
 }
 
-// calculateTenacityDifficulty оценивает сложность для конкретной точки,
-// анализируя длину и скорость текущего стрима/батрста, глядя назад.
-// Это точный порт логики из tenacity.cpp.
-func calculateTenacityDifficulty(pressIntervals []int, index int) float64 {
-	diff := 0.0
+// getLongestStream находит самый длинный stream в map.
+// Портирует GetLongestStream из tenacity.cpp.
+func getLongestStream(streams map[int][][]int) Stream {
+	mx := 1
+	interval := 0
 
-	// 1. Анализ стрима (Stream)
-	// Стрим - это последовательность интервалов <= tenacityStreamThreshold
-	streamLength := 0
-	streamIntervalSum := 0
+	for key, stream := range streams {
+		interval = key
 
-	for i := index; i > 0; i-- {
-		interval := pressIntervals[i]
-		if float64(interval) <= tenacityStreamThreshold {
-			streamLength++
-			streamIntervalSum += interval
-		} else {
-			break // Прерываем, как только встретили медленный интервал
+		mx = 1
+		for _, j := range stream {
+			length := len(j) + 1
+			if length > mx {
+				mx = length
+			}
 		}
-	}
 
-	if streamLength >= tenacityMinStreamLength {
-		avgStreamInterval := float64(streamIntervalSum) / float64(streamLength)
-		// Длинные стримы сложнее (экспоненциальный рост)
-		lengthBonus := math.Pow(float64(streamLength), 1.2)
-		// Быстрые стримы сложнее
-		speedBonus := math.Pow(tenacityStreamThreshold/avgStreamInterval, 1.5)
-		diff += lengthBonus * speedBonus
-	}
-
-	// 2. Анализ батрста (Burst)
-	// Батрст - это очень быстрая последовательность (интервал <= tenacityBurstThreshold)
-	// Обычно короче стрима, но требует взрывной скорости
-	burstLength := 0
-	burstIntervalSum := 0
-
-	for i := index; i > 0; i-- {
-		interval := pressIntervals[i]
-		if float64(interval) <= tenacityBurstThreshold {
-			burstLength++
-			burstIntervalSum += interval
-		} else {
+		if mx > 1 {
 			break
 		}
 	}
 
-	if burstLength >= 2 { // Батрсты могут быть короче стримов (например, 2-3 ноты)
-		avgBurstInterval := float64(burstIntervalSum) / float64(burstLength)
-		// Батрсты дают бонус за экстремальную скорость
-		burstSpeedBonus := math.Pow(tenacityBurstThreshold/avgBurstInterval, 2.5)
-		// Небольшой бонус за длину батрста
-		burstLengthBonus := math.Pow(float64(burstLength), 0.8)
-		diff += burstSpeedBonus * burstLengthBonus * 0.5 // Множитель для балансировки
-	}
-
-	return diff
+	return Stream{interval, mx}
 }

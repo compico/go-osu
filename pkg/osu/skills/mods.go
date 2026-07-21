@@ -1,6 +1,8 @@
 package skills
 
 import (
+	"math"
+
 	"github.com/compico/go-osu/pkg/osu"
 	"github.com/compico/go-osu/pkg/vector2d"
 )
@@ -51,18 +53,18 @@ func ApplyMods(original *osu.Beatmap, mods osu.Mod) *osu.Beatmap {
 
 	// --- HR: +40% AR/OD/HP, +30% CS, инверсия Y ---
 	if mods&osu.HR != 0 {
-		bm.ApproachRate = clampF(bm.ApproachRate*1.4, 0, 10)
-		bm.OverallDifficulty = clampF(bm.OverallDifficulty*1.4, 0, 10)
-		bm.HPDrainRate = clampF(bm.HPDrainRate*1.4, 0, 10)
-		bm.CircleSize = clampF(bm.CircleSize*1.3, 0, 10)
+		bm.ApproachRate = math.Min(bm.ApproachRate*1.4, 10)
+		bm.OverallDifficulty = math.Min(bm.OverallDifficulty*1.4, 10)
+		bm.HPDrainRate = math.Min(bm.HPDrainRate*1.4, 10)
+		bm.CircleSize = math.Min(bm.CircleSize*1.3, 10)
 
-		// Инвертируем Y координаты (playfield 512×384 в osu!pixels)
 		for i := range bm.HitObjects {
 			bm.HitObjects[i].Pos.Y = 384 - bm.HitObjects[i].Pos.Y
+
 			for j := range bm.HitObjects[i].Curves {
-				bm.HitObjects[i].Curves[j].Y = 384 - bm.HitObjects[i].Curves[j].Y
+				bm.HitObjects[i].Curves[j].Y =
+					384 - bm.HitObjects[i].Curves[j].Y
 			}
-			// EndPoint будет пересчитан в PrepareMapData на основе новых якорей
 		}
 	}
 
@@ -76,53 +78,69 @@ func ApplyMods(original *osu.Beatmap, mods osu.Mod) *osu.Beatmap {
 
 	// --- DT: ×1.5 скорость ---
 	if mods&osu.DT != 0 {
-		bm.ApproachRate = applySpeedMod(bm.ApproachRate, 1.5)
-		bm.OverallDifficulty = applySpeedMod(bm.OverallDifficulty, 1.5)
-		bm.HPDrainRate = applySpeedMod(bm.HPDrainRate, 1.5)
+		const speed = 1.5
 
 		for i := range bm.TimingPoints {
-			bm.TimingPoints[i].Time /= 1.5
+			bm.TimingPoints[i].Time =
+				math.Ceil(bm.TimingPoints[i].Time / speed)
+
 			if bm.TimingPoints[i].Uninherited {
-				bm.TimingPoints[i].BeatLength /= 1.5
+				bm.TimingPoints[i].BeatLength /= speed
 			}
 		}
+
 		for i := range bm.HitObjects {
-			bm.HitObjects[i].Time = int(float64(bm.HitObjects[i].Time) / 1.5)
-			bm.HitObjects[i].EndTime = int(float64(bm.HitObjects[i].EndTime) / 1.5)
+			bm.HitObjects[i].Time =
+				int(math.Ceil(float64(bm.HitObjects[i].Time) / speed))
+
+			bm.HitObjects[i].EndTime =
+				int(math.Ceil(float64(bm.HitObjects[i].EndTime) / speed))
 		}
+
+		bm.ApproachRate =
+			math.Min(msToAR(arToMS(bm.ApproachRate)/speed), 11)
 	}
 
 	// --- HT: ×0.75 скорость ---
 	if mods&osu.HT != 0 {
-		bm.ApproachRate = applySpeedMod(bm.ApproachRate, 0.75)
-		bm.OverallDifficulty = applySpeedMod(bm.OverallDifficulty, 0.75)
-		bm.HPDrainRate = applySpeedMod(bm.HPDrainRate, 0.75)
+		const speed = 0.75
 
 		for i := range bm.TimingPoints {
-			bm.TimingPoints[i].Time /= 0.75
+			bm.TimingPoints[i].Time =
+				math.Ceil(bm.TimingPoints[i].Time / speed)
+
 			if bm.TimingPoints[i].Uninherited {
-				bm.TimingPoints[i].BeatLength /= 0.75
+				bm.TimingPoints[i].BeatLength /= speed
 			}
 		}
+
 		for i := range bm.HitObjects {
-			bm.HitObjects[i].Time = int(float64(bm.HitObjects[i].Time) / 0.75)
-			bm.HitObjects[i].EndTime = int(float64(bm.HitObjects[i].EndTime) / 0.75)
+			bm.HitObjects[i].Time =
+				int(math.Ceil(float64(bm.HitObjects[i].Time) / speed))
+
+			bm.HitObjects[i].EndTime =
+				int(math.Ceil(float64(bm.HitObjects[i].EndTime) / speed))
 		}
+
+		bm.ApproachRate =
+			msToAR(arToMS(bm.ApproachRate) / speed)
 	}
 
 	return &bm
 }
 
-// applySpeedMod применяет формулу osu! для DT/HT к параметрам AR/OD/HP.
-// При value ≤ 5: new = value × multiplier
-// При value > 5: new = (value − 5) × multiplier + 5
-func applySpeedMod(value, multiplier float64) float64 {
-	if value <= 5 {
-		value = value * multiplier
-	} else {
-		value = (value-5)*multiplier + 5
+func arToMS(ar float64) float64 {
+	if ar <= 5 {
+		return 1800 - (120 * ar)
 	}
-	return clampF(value, 0, 10)
+	return 1950 - (150 * ar)
+}
+
+func msToAR(ms float64) float64 {
+	if ms >= 1200 {
+		return (1800 - ms) / 120
+	}
+	return (1950 - ms) / 150
 }
 
 func clampF(value, minVal, maxVal float64) float64 {

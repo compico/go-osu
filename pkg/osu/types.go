@@ -111,8 +111,8 @@ type DatabaseBeatmap struct {
 type HitObject struct {
 	Pos          vector2d.Vector2dd
 	Time         int
-	Type         int
-	CurveType    rune
+	Type         HitObjectType
+	CurveType    CurveType
 	Curves       []vector2d.Vector2dd
 	LerpPoints   []vector2d.Vector2dd
 	Ncurve       int
@@ -231,6 +231,7 @@ type Beatmap struct {
 type Mod int
 
 const (
+	NM Mod = 0
 	NF Mod = 1
 	EZ Mod = 2
 	HD Mod = 8
@@ -259,6 +260,42 @@ const (
 	HitHold           HitObjectType = 128
 	HitManiaLong      HitObjectType = 128
 )
+
+func (hot HitObjectType) IsHitNormal() bool {
+	return hot&HitNormal != 0
+}
+
+func (hot HitObjectType) IsHitSlider() bool {
+	return hot&HitSlider != 0
+}
+
+func (hot HitObjectType) IsHitNewCombo() bool {
+	return hot&HitNewCombo != 0
+}
+
+func (hot HitObjectType) IsHitNormalNewCombo() bool {
+	return hot&HitNormalNewCombo != 0
+}
+
+func (hot HitObjectType) IsHitSliderNewCombo() bool {
+	return hot&HitSliderNewCombo != 0
+}
+
+func (hot HitObjectType) IsHitSpinner() bool {
+	return hot&HitSpinner != 0
+}
+
+func (hot HitObjectType) IsHitColourHax() bool {
+	return hot&HitColourHax != 0
+}
+
+func (hot HitObjectType) IsHitHold() bool {
+	return hot&HitHold != 0
+}
+
+func (hot HitObjectType) IsHitManiaLong() bool {
+	return hot&HitManiaLong != 0
+}
 
 // CurveType Curve Type
 type CurveType rune

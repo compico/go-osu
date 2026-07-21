@@ -23,6 +23,25 @@ type AimPoint struct {
 	Type AimPointType
 }
 
+type TimingPoint struct {
+	Offset       int
+	BeatInterval float64
+	Meter        int
+	Inherited    bool
+	Sm           float64
+	Bpm          float64
+}
+
+// TargetPoint mirrors reaction.cpp/generic.cpp's TIMING struct — a point in
+// time the player must react to and hit (either a circle's start, or a
+// slider tick).
+type TargetPoint struct {
+	Time  float64
+	Pos   vector2d.Vector2dd
+	Key   int  // index used to look back into Map.HitObjects
+	Press bool // true for slider ticks, false for circle starts
+}
+
 // ReadingPoint mirrors globals.h's ReadingPoint struct.
 type ReadingPoint struct {
 	Index   int
@@ -95,44 +114,40 @@ type Skills struct {
 type MapData struct {
 	Map *osu.Beatmap
 
-	Mods       osu.Mod
-	ModsString string
+	Mods osu.Mod
+
+	TimingPoints []TimingPoint
 
 	// TimeMapper is a helper for using a hit object's time as an index
 	// into Map.HitObjects (ported from Beatmap.timeMapper).
 	TimeMapper map[int]int
 
-	Spinners int
-
 	// Aim
-	Velocities       Velocities
-	Distances        []float64
-	AimStrains       []float64
-	AngleStrains     []float64
-	PrecisionStrains []float64
-	AimPoints        []AimPoint
-	AccuracyStrains  []float64
+	Velocities Velocities
+	Distances  []float64
+	AimStrains []float64
+	AimPoints  []AimPoint
 
 	// Reading
-	Angles          []float64
-	AngleBonuses    []float64
-	ReactionTimes   []int
-	ReactionStrains []float64
-	ReadingStrains  []float64
-	ReadingPoints   []ReadingPoint
-	MemoryStrains   []float64
+	Angles         []float64
+	AngleBonuses   []float64
+	ReadingStrains []float64
+	ReadingPoints  []ReadingPoint
 
 	// Tapping
 	PressIntervals []int
 	TapStrains     []float64
 
 	// Tenacity / Stamina
-	Streams         map[int][]Stream
-	Bursts          map[int][]Burst
-	TenacityStrains []float64
+	Streams map[int][][]int
+	Bursts  map[int][][]int
 
-	Patterns Patterns
-	Skills   Skills
+	TargetPoints []TargetPoint
+
+	Skills Skills
+
+	BpmMin float64
+	BpmMax float64
 }
 
 // NewMapData creates an independent calculation context for a beatmap.
@@ -143,12 +158,17 @@ func NewMapData(bm *osu.Beatmap, mods osu.Mod) *MapData {
 		Map:        bm,
 		Mods:       mods,
 		TimeMapper: make(map[int]int, len(bm.HitObjects)),
-		Streams:    make(map[int][]Stream),
-		Bursts:     make(map[int][]Burst),
+		Streams:    make(map[int][][]int),
+		Bursts:     make(map[int][][]int),
+		TapStrains: make([]float64, 0),
 	}
 }
 
 // HasMod ports the C++ HasMod(beatmap, mod) helper as a method.
 func (md *MapData) HasMod(m osu.Mod) bool {
 	return md.Mods&m != 0
+}
+
+func (md *MapData) HasAnyMods() bool {
+	return md.Mods != 0
 }

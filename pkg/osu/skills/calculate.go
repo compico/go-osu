@@ -1,8 +1,6 @@
 package skills
 
 import (
-	"fmt"
-
 	"github.com/compico/go-osu/pkg/osu"
 )
 
@@ -10,53 +8,6 @@ type SkillResult struct {
 	Mods       osu.Mod
 	ModsString string
 	Skills     Skills
-}
-
-func CalculateAllSkillsForMods(bm *osu.Beatmap, mods osu.Mod, vars *Vars) (*SkillResult, error) {
-	if bm.Mode != osu.ModeOsu {
-		return nil, fmt.Errorf("invalid mode: %s", bm.Mode)
-	}
-
-	// Применяем моды к копии карты
-	modifiedBm := ApplyMods(bm, mods)
-
-	// Создаём независимый контекст расчёта
-	md := NewMapData(modifiedBm, mods)
-
-	// Подготовка данных (геометрия слайдеров, углы, интервалы)
-	PrepareMapData(md)
-
-	// Рассчитываем все 8 скиллов
-	CalculateStamina(md, vars)
-	CalculateTenacity(md, vars)
-	CalculateAimStrains(md, vars)
-	CalculateAgility(md, vars)
-	CalculatePrecision(md, vars)
-	CalculateReading(md, vars, mods&osu.HD != 0) // Hidden влияет на Reading
-	CalculateReaction(md, vars)
-	CalculateMemory(md, vars)
-	CalculateAccuracy(md, vars)
-
-	return &SkillResult{
-		Mods:       mods,
-		ModsString: modsToString(mods),
-		Skills:     md.Skills,
-	}, nil
-}
-
-func CalculateAllSkillsFromFile(bm osu.Beatmap, modsCombination []osu.Mod) (map[osu.Mod]*SkillResult, error) {
-	vars := DefaultVars()
-	results := make(map[osu.Mod]*SkillResult)
-
-	for _, mods := range modsCombination {
-		result, err := CalculateAllSkillsForMods(&bm, mods, vars)
-		if err != nil {
-			return nil, fmt.Errorf("failed to calculate for mods %v: %w", mods, err)
-		}
-		results[mods] = result
-	}
-
-	return results, nil
 }
 
 // DefaultModCombinations возвращает стандартный набор комбинаций модов,
@@ -127,4 +78,17 @@ func modsToString(mods osu.Mod) string {
 		s += "FL"
 	}
 	return s
+}
+
+func calculateSkills(md *MapData, vars *Vars) {
+	CalculateReaction(md, vars, md.HasMod(osu.HD))
+	CalculateStamina(md, vars)
+	CalculateTenacity(md, vars)
+	CalculateAgility(md, vars)
+	CalculatePrecision(md, vars)
+	CalculateAccuracy(md, vars)
+	if md.HasMod(osu.FL) {
+		CalculateMemory(md, vars)
+	}
+	CalculateReading(md, vars, md.HasMod(osu.HD))
 }

@@ -167,7 +167,7 @@ func (d *Decoder) parseGeneralSection(bm *osu.Beatmap) error {
 		bm.SampleSet = v
 		break
 	case "StackLeniency":
-		value, err := strconv.ParseFloat(v, 64)
+		value, err := strconv.ParseFloat(v, 32)
 		if err != nil {
 			return err
 		}
@@ -447,28 +447,28 @@ func (d *Decoder) parseHitObjectsSection(bm *osu.Beatmap) error {
 	ho := osu.HitObject{
 		Pos:  vector2d.Vector2dd{X: float64(x), Y: float64(y)},
 		Time: timeVal,
-		Type: typeVal,
+		Type: osu.HitObjectType(typeVal),
 	}
 
 	switch {
-	case typeVal&int(osu.HitSlider) != 0:
+	case ho.Type.IsHitSlider():
 		if err := d.parseSliderParams(&ho); err != nil {
 			return fmt.Errorf("hit object slider params: %w", err)
 		}
-	case typeVal&int(osu.HitSpinner) != 0:
+	case ho.Type.IsHitSpinner():
 		endTime, err := d.parseInt()
 		if err != nil {
 			return fmt.Errorf("hit object spinner endTime: %w", err)
 		}
 		ho.EndTime = endTime
-	case typeVal&int(osu.HitHold) != 0:
+	case ho.Type.IsHitHold():
 		endTime, err := d.parseHoldEndTime()
 		if err != nil {
 			return fmt.Errorf("hit object hold endTime: %w", err)
 		}
 		ho.EndTime = endTime
 	}
-	// case typeVal&int(osu.HitNormal) != 0: доп. параметров нет
+	// case ho.Type.IsHitNormal(): доп. параметров нет
 
 	bm.HitObjects = append(bm.HitObjects, ho)
 
@@ -486,7 +486,7 @@ func (d *Decoder) parseSliderParams(ho *osu.HitObject) error {
 		return fmt.Errorf("invalid curve type")
 	}
 
-	ho.CurveType = rune(parts[0][0])
+	ho.CurveType = osu.CurveType(rune(parts[0][0]))
 
 	for _, p := range parts[1:] {
 		xy := bytes.SplitN(p, []byte(":"), 2)

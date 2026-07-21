@@ -2,116 +2,145 @@ package skills
 
 import (
 	"math"
-)
 
-// Константы из memory.cpp
-const (
-	memoryStrainDecayBase = 0.3
-	memoryWindowSize      = 3000.0
+	"github.com/compico/go-osu/pkg/osu"
+	"github.com/compico/go-osu/pkg/vector2d"
 )
 
 // CalculateMemory портирует memory.cpp's CalculateMemory.
 // Оценивает сложность запоминания паттернов карты.
-// Требует md.AimPoints, md.Angles, md.Distances (заполняются в PrepareMapData).
-func CalculateMemory(md *MapData, vars *Vars) {
-	n := len(md.AimPoints)
-	if n == 0 {
-		md.Skills.Memory = 0
-		return
-	}
+// Требует md.AimPoints, md.Angles, md.Distances (заполняются в prepareMapData).
+func CalculateMemory(md *MapData, vars *Vars) float64 {
+	totalMemPoints := 0.0
+	old := md.Map.HitObjects[0]
+	combo := 0
 
-	strain := 0.0
-	md.MemoryStrains = make([]float64, n)
+	for i := 1; i < len(md.Map.HitObjects); i++ {
+		ho := md.Map.HitObjects[i]
 
-	for i := 0; i < n; i++ {
-		diff := calculateMemoryDifficulty(md, i)
+		memPoints := 0.0
+		observableDist := 160
 
-		decay := 0.0
-		if i > 0 {
-			prevInterval := float64(md.AimPoints[i].Time - md.AimPoints[i-1].Time)
-			decay = math.Pow(memoryStrainDecayBase, prevInterval/1000.0)
+		if combo < 100 {
+			observableDist = 160
+		} else if combo < 200 {
+			observableDist = 120
+		} else {
+			observableDist = 100
 		}
 
-		strain = strain*decay + diff
-		md.MemoryStrains[i] = strain
+		sliderBonusFactor := 1.0
+
+		// ВАЖНО: old, а не ho
+		if old.Type.IsHitSlider() {
+			sliderBonusFactor = vars.Get("Memory", "SliderBuff")
+		}
+
+		observable := false
+		helpPixels := 0
+
+		for j := i - 1; j > 0; j-- {
+			prev := md.Map.HitObjects[j]
+
+			if ho.Time-prev.Time > arToMs(md.Map.ApproachRate) {
+				break
+			}
+
+			if !md.HasMod(osu.HD) {
+				size := GetApproachRelativeSize(
+					prev.EndTime,
+					ho.Time,
+					md.Map.ApproachRate,
+				)
+
+				helpPixels = int(size * float64(cs2px(md.Map.CircleSize)))
+			} else {
+				observableTime := ho.Time -
+					int(float64(arToMs(md.Map.ApproachRate))*0.3)
+
+				if prev.Time > observableTime {
+					continue
+				}
+
+				helpPixels = cs2px(md.Map.CircleSize)
+			}
+
+			if IsObservableFrom(
+				ho,
+				observableDist+helpPixels,
+				prev.Pos,
+			) {
+				observable = true
+				break
+			}
+		}
+
+		if !observable {
+			if !md.HasMod(osu.HD) {
+				size := GetApproachRelativeSize(
+					old.EndTime,
+					ho.Time,
+					md.Map.ApproachRate,
+				)
+
+				helpPixels = int(size * float64(cs2px(md.Map.CircleSize)))
+			} else {
+				helpPixels = cs2px(md.Map.CircleSize)
+			}
+
+			dist := ho.Pos.DistanceFrom(old.EndPoint)
+
+			if ho.Type.IsHitNewCombo() || ho.Type.IsHitColourHax() {
+				if dist > float64(observableDist+helpPixels) {
+					memPoints = sliderBonusFactor *
+						(dist / float64(ho.Time-old.Time))
+				}
+			} else {
+				if dist > float64(observableDist+helpPixels) {
+					memPoints = sliderBonusFactor *
+						vars.Get("Memory", "FollowpointsNerf") *
+						(dist / float64(ho.Time-old.Time))
+				}
+			}
+		}
+
+		if ho.Type.IsHitNormal() || ho.Type.IsHitSpinner() {
+			combo++
+		} else if ho.Type.IsHitSlider() {
+			combo += len(ho.Ticks) + 2
+		}
+
+		old = ho
+		totalMemPoints += memPoints
 	}
 
-	topWeights := getPeakVals(md.MemoryStrains)
+	md.Skills.Memory = vars.Get("Memory", "TotalMult") *
+		math.Pow(totalMemPoints, vars.Get("Memory", "TotalPow"))
 
-	md.Skills.Memory = getWeightedValue2(topWeights, vars.Get("Memory", "Weighting"))
-	md.Skills.Memory = vars.Get("Memory", "TotalMult") * math.Pow(md.Skills.Memory, vars.Get("Memory", "TotalPow"))
+	return md.Skills.Memory
+}
+func IsObservableFrom(obj osu.HitObject, distance int, fromPos vector2d.Vector2dd) bool {
+	dist := obj.Pos.DistanceFrom(fromPos)
+
+	if dist < float64(distance) {
+		return true
+	}
+
+	return false
 }
 
-// calculateMemoryDifficulty оценивает сложность запоминания для конкретной точки.
-// Непредсказуемые паттерны (резкие изменения углов/расстояний) сложнее запомнить.
-func calculateMemoryDifficulty(md *MapData, index int) float64 {
-	if index < 2 {
+func GetApproachRelativeSize(time int, hitTime int, ar float64) float64 {
+	ms := arToMs(ar)
+
+	if hitTime < time {
+		return 0
+	}
+	if hitTime-ms > time {
 		return 0
 	}
 
-	diff := 0.0
+	diff := hitTime - time
+	interval := ms
 
-	// 1. Вариативность углов (резкие изменения направления сложнее запомнить)
-	if index-1 < len(md.Angles) && index-2 < len(md.Angles) {
-		currentAngle := math.Abs(md.Angles[index-1])
-		prevAngle := math.Abs(md.Angles[index-2])
-
-		angleChange := math.Abs(currentAngle - prevAngle)
-		if angleChange > 0 {
-			// Нормализуем изменение угла (0-180°)
-			normalizedChange := clampVal(angleChange, 0, 180) / 180.0
-			angleDifficulty := math.Pow(normalizedChange, 1.3)
-			diff += angleDifficulty * 2.0
-		}
-	}
-
-	// 2. Вариативность расстояний (нерегулярные прыжки сложнее запомнить)
-	if index < len(md.Distances) && index-1 < len(md.Distances) {
-		currentDist := md.Distances[index]
-		prevDist := md.Distances[index-1]
-
-		if prevDist > 0 {
-			distRatio := currentDist / prevDist
-			// Отношение 1.0 = одинаковые расстояния (легко запомнить)
-			// Отношение != 1.0 = разные расстояния (сложнее)
-			distDeviation := math.Abs(distRatio - 1.0)
-			if distDeviation > 0.1 {
-				distDifficulty := math.Pow(distDeviation, 1.5)
-				diff += distDifficulty * 1.5
-			}
-		}
-	}
-
-	// 3. Сложность паттерна (анализ последних N объектов)
-	// Считаем количество уникальных паттернов в окне
-	patternComplexity := analyzePatternComplexity(md, index)
-	diff += patternComplexity * 2.0
-
-	return diff
-}
-
-// analyzePatternComplexity анализирует сложность паттерна в окне времени.
-func analyzePatternComplexity(md *MapData, index int) float64 {
-	if index < 3 {
-		return 0
-	}
-
-	windowStart := index - 3
-	if windowStart < 0 {
-		windowStart = 0
-	}
-
-	// Считаем количество изменений направления
-	directionChanges := 0
-	for i := windowStart + 1; i <= index && i-1 < len(md.Angles); i++ {
-		if i >= 2 && i-1 < len(md.Angles) {
-			angle := md.Angles[i-1]
-			if math.Abs(angle) > 30 { // Значительное изменение направления
-				directionChanges++
-			}
-		}
-	}
-
-	// Нормализуем количество изменений
-	return float64(directionChanges) / 3.0
+	return float64(1 + 3*(diff/interval))
 }
