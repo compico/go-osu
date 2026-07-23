@@ -50,36 +50,6 @@ func DefaultModCombinations() []osu.Mod {
 	return combinations
 }
 
-// modsToString преобразует флаг модов в человекочитаемую строку.
-func modsToString(mods osu.Mod) string {
-	if mods == 0 {
-		return "None"
-	}
-	s := ""
-	if mods&osu.NF != 0 {
-		s += "NF"
-	}
-	if mods&osu.EZ != 0 {
-		s += "EZ"
-	}
-	if mods&osu.HD != 0 {
-		s += "HD"
-	}
-	if mods&osu.HR != 0 {
-		s += "HR"
-	}
-	if mods&osu.DT != 0 {
-		s += "DT"
-	}
-	if mods&osu.HT != 0 {
-		s += "HT"
-	}
-	if mods&osu.FL != 0 {
-		s += "FL"
-	}
-	return s
-}
-
 func calculateSkills(md *MapData, vars *Vars) {
 	CalculateReaction(md, vars, md.HasMod(osu.HD))
 	CalculateStamina(md, vars)

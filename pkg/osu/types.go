@@ -246,6 +246,36 @@ const (
 	AP Mod = 8192
 )
 
+// modsToString преобразует флаг модов в человекочитаемую строку.
+func (mods Mod) String() string {
+	if mods == 0 {
+		return "NM"
+	}
+	s := ""
+	if mods&NF != 0 {
+		s += "NF"
+	}
+	if mods&EZ != 0 {
+		s += "EZ"
+	}
+	if mods&HR != 0 {
+		s += "HR"
+	}
+	if mods&DT != 0 {
+		s += "DT"
+	}
+	if mods&HT != 0 {
+		s += "HT"
+	}
+	if mods&HD != 0 {
+		s += "HD"
+	}
+	if mods&FL != 0 {
+		s += "FL"
+	}
+	return s
+}
+
 // HitObjectType flags
 type HitObjectType int
 

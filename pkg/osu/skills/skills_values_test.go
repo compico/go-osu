@@ -149,9 +149,17 @@ func TestSkillsValues_Race(t *testing.T) {
 	}
 }
 
-var skillsReference = map[int]map[int]Skills{
-	215: {
-		int(osu.NM): {
+type SkillsReference struct {
+	BeatmapID int
+	Mods      osu.Mod
+	Skills    Skills
+}
+
+var skillsReference = []SkillsReference{
+	{
+		BeatmapID: 215,
+		Mods:      osu.NM,
+		Skills: Skills{
 			Stamina:   153.686,
 			Tenacity:  260.605,
 			Agility:   328.079,
@@ -161,8 +169,11 @@ var skillsReference = map[int]map[int]Skills{
 			Accuracy:  329.475,
 			Reaction:  217.3,
 		},
-
-		int(osu.HD | osu.HR | osu.FL): {
+	},
+	{
+		BeatmapID: 215,
+		Mods:      osu.HD | osu.HR | osu.FL,
+		Skills: Skills{
 			Stamina:   153.686,
 			Tenacity:  260.605,
 			Agility:   328.079,
@@ -191,7 +202,7 @@ func TestSkillsValues_CompareWithReference(t *testing.T) {
 		diff := math.Abs(got - want)
 
 		if diff > epsilon {
-			t.Errorf("%s mismatch: got %.6f want %.6f (diff %.6f)",
+			t.Errorf("%s FAIL: got %.6f want %.6f (diff %.6f)",
 				name, got, want, diff)
 			return
 		}
@@ -213,68 +224,45 @@ func TestSkillsValues_CompareWithReference(t *testing.T) {
 			continue
 		}
 
-		expectedMods, ok := skillsReference[bm.BeatmapID]
-		if !ok {
-			continue
-		}
+		for _, ref := range skillsReference {
+			if ref.BeatmapID != bm.BeatmapID {
+				continue
+			}
 
-		for mods, expected := range expectedMods {
-			t.Run(fmt.Sprintf("%d_mods_%v", bm.BeatmapID, mods), func(t *testing.T) {
-				result := ProcessBeatmap(&bm, osu.Mod(mods), vars)
-
-				t.Logf(
-					"Beatmap %d Mods %d\n"+
-						"Stamina:   %.3f\n"+
-						"Tenacity:  %.3f\n"+
-						"Agility:   %.3f\n"+
-						"Precision: %.3f\n"+
-						"Reading:   %.3f\n"+
-						"Memory:    %.3f\n"+
-						"Accuracy:  %.3f\n"+
-						"Reaction:  %.3f",
-					bm.BeatmapID,
-					mods,
-					result.Skills.Stamina,
-					result.Skills.Tenacity,
-					result.Skills.Agility,
-					result.Skills.Precision,
-					result.Skills.Reading,
-					result.Skills.Memory,
-					result.Skills.Accuracy,
-					result.Skills.Reaction,
-				)
+			t.Run(fmt.Sprintf("%d_mods_%v", ref.BeatmapID, ref.Mods.String()), func(t *testing.T) {
+				result := ProcessBeatmap(&bm, ref.Mods, vars)
 
 				check(t, "Stamina",
 					result.Skills.Stamina,
-					expected.Stamina)
+					ref.Skills.Stamina)
 
 				check(t, "Tenacity",
 					result.Skills.Tenacity,
-					expected.Tenacity)
+					ref.Skills.Tenacity)
 
 				check(t, "Agility",
 					result.Skills.Agility,
-					expected.Agility)
+					ref.Skills.Agility)
 
 				check(t, "Precision",
 					result.Skills.Precision,
-					expected.Precision)
+					ref.Skills.Precision)
 
 				check(t, "Reading",
 					result.Skills.Reading,
-					expected.Reading)
+					ref.Skills.Reading)
 
 				check(t, "Memory",
 					result.Skills.Memory,
-					expected.Memory)
+					ref.Skills.Memory)
 
 				check(t, "Accuracy",
 					result.Skills.Accuracy,
-					expected.Accuracy)
+					ref.Skills.Accuracy)
 
 				check(t, "Reaction",
 					result.Skills.Reaction,
-					expected.Reaction)
+					ref.Skills.Reaction)
 			})
 		}
 	}

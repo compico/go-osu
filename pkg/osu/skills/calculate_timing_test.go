@@ -82,7 +82,7 @@ func TestProcessBeatmap_StepTiming_AllMods(t *testing.T) {
 					break
 				}
 
-				modsLabel := modsToString(mods)
+				modsLabel := mods.String()
 
 				var md *MapData
 				stepOK := true

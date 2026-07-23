@@ -14,7 +14,7 @@ func ProcessBeatmap(bm *osu.Beatmap, mods osu.Mod, vars *Vars) *SkillResult {
 
 	return &SkillResult{
 		Mods:       mods,
-		ModsString: modsToString(mods),
+		ModsString: mods.String(),
 		Skills:     md.Skills,
 	}
 }
