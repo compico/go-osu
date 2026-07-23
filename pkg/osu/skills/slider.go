@@ -132,15 +132,9 @@ func (s *Slider) Init(curvesList []*Bezier, hitObject *osu.HitObject) {
 //
 // Fits perfectly into your concurrency model by executing on the private *MapData instance context.
 func approximateSliderPoints(md *MapData) {
-	if md.Map == nil {
-		return
-	}
-
 	var timingPointOffsets []float64
 	var beatLengths []float64
 	var base float64
-
-	// Read from skills.TimingPoints if populated, otherwise fallback to the raw osu.Beatmap timing points
 
 	for _, tp := range md.TimingPoints {
 		timingPointOffsets = append(timingPointOffsets, float64(tp.Offset))
@@ -156,136 +150,62 @@ func approximateSliderPoints(md *MapData) {
 	for idx, _ := range md.Map.HitObjects {
 		hitObject := &md.Map.HitObjects[idx]
 
-		// HitSlider flags = 2 (standard osu slider flag bit)
-		isSlider := (int(hitObject.Type) & 2) != 0
-
-		if isSlider {
+		if hitObject.Type.IsHitSlider() {
 			timingPointIndex := getValuePos(timingPointOffsets, float64(hitObject.Time))
 			if timingPointIndex == -1 {
 				timingPointIndex = 0
 			}
 
-			var bpm float64
-			var sm float64
-
-			// Retrieve proper BPM and Slider Velocity Multiplier for this segment
-			if len(md.TimingPoints) > 0 && timingPointIndex < len(md.TimingPoints) {
-				tp := md.TimingPoints[timingPointIndex]
-				bpm = tp.Bpm
-				sm = tp.Sm
-			} else if len(md.Map.TimingPoints) > 0 && timingPointIndex < len(md.Map.TimingPoints) {
-				tp := &md.Map.TimingPoints[timingPointIndex]
-				bpm = tp.BPM()
-				sm = tp.SliderVelocity()
-			}
-
-			sliderMultiplier := md.Map.SliderMultiplier
-			if sliderMultiplier <= 0 {
-				sliderMultiplier = 1.0
-			}
-
-			if bpm <= 0 {
-				bpm = 120
-			}
-
-			// Normalized, safe positive-only repeat calculation equivalent to the original C++:
-			// ((-600.0 / bpm) * hitObject.pixelLength * sm) / (100.0 * beatmap.sm)
-			val := ((-600.0 / bpm) *
-				hitObject.PixelLength *
-				sm) /
-				(100.0 * md.Map.SliderMultiplier)
-
-			hitObject.ToRepeatTime = int(math.Round(val))
-
+			hitObject.ToRepeatTime = int(math.Round(-600/md.TimingPoints[timingPointIndex].Bpm*hitObject.PixelLength*md.TimingPoints[timingPointIndex].Sm) / (100.0 * md.Map.SliderMultiplier))
 			hitObject.EndTime = hitObject.Time + hitObject.ToRepeatTime*hitObject.Repeat
-
-			// Calculate precise timestamps of each slider repeat turnaround
-			hitObject.RepeatTimes = nil
-			if hitObject.Repeat > 1 {
-				for t := hitObject.Time; t < hitObject.EndTime; t += hitObject.ToRepeatTime {
-					if t > hitObject.EndTime {
-						break
-					}
-					hitObject.RepeatTimes = append(hitObject.RepeatTimes, t)
-				}
-			}
-
-			// Calculate Slider Ticks
-			var beatLength float64
-			if timingPointIndex < len(beatLengths) {
-				beatLength = beatLengths[timingPointIndex]
-			} else {
-				beatLength = 60000.0 / bpm
-			}
-
-			sliderTickRate := md.Map.SliderTickRate
-			if sliderTickRate <= 0 {
-				sliderTickRate = 1.0
-			}
-
-			tickInterval := int(beatLength / sliderTickRate)
-			errInterval := 10
-			j := 1
-
-			hitObject.Ticks = nil
-			for t := hitObject.Time + tickInterval; t < (hitObject.EndTime - errInterval); t += tickInterval {
-				if t > hitObject.EndTime {
+			for i := hitObject.Time; i < hitObject.EndTime; i += hitObject.ToRepeatTime {
+				if i > hitObject.EndTime {
 					break
 				}
-				tickTime := hitObject.Time + int(float64(tickInterval)*float64(j))
+				hitObject.RepeatTimes = append(hitObject.RepeatTimes, i)
+			}
+
+			tickInterval := int(beatLengths[timingPointIndex] / md.Map.SliderTickRate)
+			const errInterval = 10
+			j := 1
+
+			for i := hitObject.Time + tickInterval; i < (hitObject.EndTime - errInterval); i += tickInterval {
+				if i > hitObject.EndTime {
+					break
+				}
+
+				tickTime := hitObject.Time + (tickInterval * j)
 				if tickTime < 0 {
 					break
 				}
+
 				hitObject.Ticks = append(hitObject.Ticks, tickTime)
 				j++
 			}
 
-			// Short slider check: If the slider starts and ends in < 100ms and has no ticks to allow a sliderbreak,
-			// convert it to a brief, standard straight linear slider to protect player combo scoring
-			if (math.Abs(float64(hitObject.EndTime-hitObject.Time)) < 100) && len(hitObject.Ticks) == 0 {
-				hitObjectNew := osu.HitObject{
-					Pos: hitObject.Pos,
+			if (absInt(hitObject.EndTime-hitObject.Time) < 100) && (len(hitObject.Ticks) == 0) {
+				ho := &osu.HitObject{
 					Curves: []vector2d.Vector2dd{
-						hitObject.Pos,
+						vector2d.New(hitObject.Pos.X, hitObject.Pos.Y),
 						vector2d.New(
-							hitObject.Pos.X+float64(tickInterval)/sliderTickRate,
-							hitObject.Pos.Y+float64(tickInterval)/sliderTickRate,
+							hitObject.Pos.X+float64(tickInterval)/md.Map.SliderTickRate,
+							hitObject.Pos.Y+float64(tickInterval)/md.Map.SliderTickRate,
 						),
 					},
+					Pos:          hitObject.Pos,
 					Type:         hitObject.Type,
 					Time:         hitObject.Time,
 					EndTime:      hitObject.Time + 101,
 					ToRepeatTime: hitObject.Time + 101,
 					Repeat:       1,
 					PixelLength:  100,
-					CurveType:    'L', // Force linear
+					CurveType:    osu.LinearCurve,
 				}
 
-				slider := NewSlider(&hitObjectNew, true)
-				hitObjectNew.LerpPoints = slider.Curve
-				hitObjectNew.Ncurve = slider.Ncurve
-				if len(slider.Curve) > 0 {
-					hitObjectNew.EndPoint = slider.Curve[len(slider.Curve)-1]
-				} else {
-					hitObjectNew.EndPoint = hitObjectNew.Pos
-				}
-
-				*hitObject = hitObjectNew
-				continue
+				NewSlider(ho, true)
+				md.Map.HitObjects[idx] = *ho
 			}
-
-			// Standard Bezier/Linear approximation
-			slider := NewSlider(hitObject, hitObject.CurveType == 'L')
-			hitObject.LerpPoints = slider.Curve
-			hitObject.Ncurve = slider.Ncurve
-			if len(slider.Curve) > 0 {
-				hitObject.EndPoint = slider.Curve[len(slider.Curve)-1]
-			} else {
-				hitObject.EndPoint = hitObject.Pos
-			}
-
 		} else {
-			// Circle or Spinner
 			hitObject.EndTime = hitObject.Time
 		}
 	}

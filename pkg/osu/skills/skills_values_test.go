@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/compico/go-osu/pkg/osu"
@@ -93,6 +95,60 @@ func TestSkillsValues_OutputForComparison(t *testing.T) {
 	t.Log("Skill values output complete — see stdout for results")
 }
 
+func TestSkillsValues_Race(t *testing.T) {
+	files, err := getOsuFiles()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(files) == 0 {
+		t.Skip("no .osu files found in ./test_data")
+	}
+
+	vars := DefaultVars()
+
+	for _, f := range files {
+		f := f // фиксируем переменную цикла
+
+		t.Run(filepath.Base(f), func(t *testing.T) {
+			t.Parallel()
+
+			data, err := os.ReadFile(f)
+			if err != nil {
+				t.Fatalf("error reading %s: %v", f, err)
+			}
+
+			var bm osu.Beatmap
+			if err := beatmap.Unmarshal(data, &bm); err != nil {
+				t.Fatalf("parse error in %s: %v", f, err)
+			}
+
+			if bm.Mode != osu.ModeOsu {
+				t.Skip("not osu mode")
+			}
+
+			// Несколько одновременных расчётов одного beatmap
+			var wg sync.WaitGroup
+
+			for i := 0; i < 100; i++ {
+				wg.Add(1)
+
+				go func() {
+					defer wg.Done()
+
+					result := ProcessBeatmap(&bm, 0, vars)
+
+					_ = result.Skills.Stamina
+					_ = result.Skills.Agility
+					_ = result.Skills.Precision
+				}()
+			}
+
+			wg.Wait()
+		})
+	}
+}
+
 var skillsReference = map[int]map[int]Skills{
 	215: {
 		int(osu.NM): {
@@ -163,7 +219,7 @@ func TestSkillsValues_CompareWithReference(t *testing.T) {
 		}
 
 		for mods, expected := range expectedMods {
-			t.Run(fmt.Sprintf("%d_mods_%d", bm.BeatmapID, mods), func(t *testing.T) {
+			t.Run(fmt.Sprintf("%d_mods_%v", bm.BeatmapID, mods), func(t *testing.T) {
 				result := ProcessBeatmap(&bm, osu.Mod(mods), vars)
 
 				t.Logf(

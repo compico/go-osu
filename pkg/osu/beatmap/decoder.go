@@ -3,7 +3,6 @@ package beatmap
 import (
 	"bytes"
 	"fmt"
-	"math"
 	"strconv"
 	"strings"
 
@@ -600,7 +599,7 @@ func (d *Decoder) parseIntDefault(def int) int {
 	if err != nil {
 		return def
 	}
-	return int(math.Round(floatVal))
+	return int(floatVal)
 }
 
 func (d *Decoder) parseFloat() (float64, error) {
@@ -623,5 +622,5 @@ func (d *Decoder) parseInt() (int, error) {
 		return 0, err
 	}
 
-	return int(math.Round(floatVal)), nil
+	return int(floatVal), nil
 }

@@ -68,6 +68,10 @@ func calculateAimStrains(md *MapData, vars *Vars) {
 	md.AimStrains = make([]float64, 0, len(md.AimPoints))
 	oldStrain := 0.0
 
+	// debug vars
+	strainBeforeSlider := 0.0
+	oldstrainBeforeDecay := 0.0
+
 	for i := 0; i < len(md.AimPoints); i++ {
 		strain := 0.0
 		if i > 0 {
@@ -83,7 +87,12 @@ func calculateAimStrains(md *MapData, vars *Vars) {
 			if time > 0 {
 				strain = distance / time * angleBonus
 			} else {
+				debugf("[STRAIN] SKIPPED i=%v (time <=0), interval=%v rawTime=%v\n", i, interval, time)
 				continue
+			}
+
+			if debug {
+				strainBeforeSlider = strain
 			}
 
 			// Уменьшаем вес для слайдеров
@@ -91,12 +100,37 @@ func calculateAimStrains(md *MapData, vars *Vars) {
 				strain *= vars.Get("Agility", "SliderStrainDecay")
 			}
 
+			if debug {
+				oldstrainBeforeDecay = oldStrain
+			}
 			oldStrain -= vars.Get("Agility", "StrainDecay") * float64(interval)
 			if oldStrain < 0 {
 				oldStrain = 0
 			}
 
 			strain += oldStrain
+			if debug {
+				strainPostSlider := 0.0
+				if strainBeforeSlider != strain && oldstrainBeforeDecay == 0 {
+					strainPostSlider = strain
+				} else {
+					strainPostSlider = strainBeforeSlider
+				}
+
+				debugf("[STRAIN] i=%v distRaw=%v distW=%v interval=%v timeW=%v angleBonus=%v strainPreSlider=%v strainPostSlider=%v oldstrainBeforeDecay=%v oldstainAfterDecay=%v finalStrain=%v\n",
+					i,
+					md.AimPoints[i].Pos.DistanceFrom(md.AimPoints[i-1].Pos),
+					distance,
+					interval,
+					time,
+					angleBonus,
+					strainBeforeSlider,
+					strainPostSlider,
+					oldstrainBeforeDecay,
+					oldStrain,
+					strain,
+				)
+			}
 		}
 		md.AimStrains = append(md.AimStrains, strain)
 		oldStrain = strain

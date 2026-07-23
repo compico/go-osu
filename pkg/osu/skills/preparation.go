@@ -48,12 +48,14 @@ func gatherAimAndReadingPoints(md *MapData) {
 		ho := md.Map.HitObjects[i]
 
 		if ho.Type.IsHitNormal() {
-
 			md.AimPoints = append(md.AimPoints, AimPoint{
 				Time: ho.Time,
 				Pos:  ho.Pos,
 				Type: AimPointCircle,
 			})
+
+			debugf("[AIMPOINT] idx=%v time=%v pos=(%v,%v) type=CIRCLE\n",
+				index, ho.Time, ho.Pos.X, ho.Pos.Y)
 
 			visTime := getVisibilityTimes(
 				ho,
@@ -85,6 +87,9 @@ func gatherAimAndReadingPoints(md *MapData) {
 				Type: AimPointSlider,
 			})
 
+			debugf("[AIMPOINT] idx=%v time=%v pos=(%v,%v) type=SLIDER_START ticks=%v repeat=%v\n",
+				index, ho.Time, ho.Pos.X, ho.Pos.Y, len(ho.Ticks), ho.Repeat)
+
 			visTime := getVisibilityTimes(
 				ho,
 				md.Map.ApproachRate,
@@ -110,14 +115,22 @@ func gatherAimAndReadingPoints(md *MapData) {
 			endTime := GetLastTickTime(ho)
 			endPos := getSliderPos(ho, endTime)
 
-			if len(ho.Ticks) > 0 ||
-				ho.Pos.DistanceFrom(endPos) > 2*float64(cs2px(md.Map.CircleSize)) {
+			dist := ho.Pos.DistanceFrom(endPos)
+			threshold := 2 * float64(cs2px(md.Map.CircleSize))
+
+			debugf("[AIMPOINT] slider check: endTime=%v endPos=(%v,%v) ticks=%v distToStart=%v threshold=%v willAdd=%v\n",
+				endTime, endPos.X, endPos.Y, len(ho.Ticks), dist, threshold, (len(ho.Ticks) > 0 || dist > threshold))
+
+			if len(ho.Ticks) > 0 || dist > threshold {
 
 				md.AimPoints = append(md.AimPoints, AimPoint{
 					Time: endTime,
 					Pos:  endPos,
 					Type: AimPointSliderEnd,
 				})
+
+				debugf("[AIMPOINT] idx=%v time=%v pos=(%v,%v) type=SLIDEREND\n",
+					index, endTime, endPos.X, endPos.Y)
 
 				md.ReadingPoints = append(md.ReadingPoints, ReadingPoint{
 					Index:   index,
@@ -135,6 +148,7 @@ func gatherAimAndReadingPoints(md *MapData) {
 			}
 		}
 	}
+	debugf("[AIMPOINT] total aimPoints=%v readingPoints=%v\n", len(md.AimPoints), len(md.ReadingPoints))
 }
 
 func getSliderPos(ho osu.HitObject, time int) vector2d.Vector2dd {
@@ -148,29 +162,24 @@ func getSliderPos(ho osu.HitObject, time int) vector2d.Vector2dd {
 		} else {
 			timeLength := time - ho.Time
 			repeatsDone := timeLength / ho.ToRepeatTime
-			percent = float64((timeLength - ho.ToRepeatTime*repeatsDone) / ho.ToRepeatTime)
+			percent = float64(timeLength-ho.ToRepeatTime*repeatsDone) / float64(ho.ToRepeatTime)
 			if (repeatsDone % 2) == 1 {
 				percent = 1 - percent
 			}
 		}
 
-		index := int(percent * float64(ho.Ncurve))
+		indexF := percent * float64(ho.Ncurve)
+		index := int(indexF)
 
 		if index >= ho.Ncurve {
 			return ho.LerpPoints[ho.Ncurve]
 		}
 
+		t2 := indexF - float64(index)
+
 		return vector2d.Vector2dd{
-			X: lerp(
-				ho.LerpPoints[index].X,
-				ho.LerpPoints[index+1].X,
-				percent*float64(ho.Ncurve),
-			),
-			Y: lerp(
-				ho.LerpPoints[index].Y,
-				ho.LerpPoints[index+1].Y,
-				percent*float64(ho.Ncurve),
-			),
+			X: lerp(ho.LerpPoints[index].X, ho.LerpPoints[index+1].X, t2),
+			Y: lerp(ho.LerpPoints[index].Y, ho.LerpPoints[index+1].Y, t2),
 		}
 	}
 
@@ -182,13 +191,12 @@ func getSliderPos(ho osu.HitObject, time int) vector2d.Vector2dd {
 func GetLastTickTime(ho osu.HitObject) int {
 	if !(len(ho.Ticks) > 0) {
 		if ho.Repeat > 1 {
-			return ho.EndTime - (ho.EndTime-ho.RepeatTimes[len(ho.RepeatTimes)-1])/2
+			return int(float64(ho.EndTime) - float64(ho.EndTime-ho.RepeatTimes[len(ho.RepeatTimes)-1])/2.0)
 		}
-
-		return ho.EndTime - (ho.EndTime-ho.Time)/2
+		return int(float64(ho.EndTime) - float64(ho.EndTime-ho.Time)/2.0)
 	}
 
-	return ho.EndTime - (ho.EndTime-ho.Ticks[len(ho.Ticks)-1])/2
+	return int(float64(ho.EndTime) - float64(ho.EndTime-ho.Ticks[len(ho.Ticks)-1])/2.0)
 }
 
 func prepareTimingPoints(md *MapData) {
@@ -325,11 +333,6 @@ type MovementData struct {
 	Velocities Velocities
 }
 
-// CS2px converts Circle Size (CS) value into circle radius in osu!pixels (640x480)
-func CS2px(cs float64) float64 {
-	return 54.5 - (4.5 * cs)
-}
-
 // calculateMovementData computes speed, distance, vector velocity, and acceleration changes
 func calculateMovementData(md *MapData) {
 	if md.Map == nil || len(md.Map.HitObjects) == 0 {
@@ -339,22 +342,22 @@ func calculateMovementData(md *MapData) {
 	var previousPos vector2d.Vector2dd
 	previousTime := -1
 
-	for _, h := range md.Map.HitObjects {
-		if h.Type.IsHitNormal() || h.Type.IsHitSlider() {
+	for _, ho := range md.Map.HitObjects {
+		if ho.Type.IsHitNormal() || ho.Type.IsHitSlider() {
 			if previousTime != -1 {
-				dx := h.Pos.X - previousPos.X
-				dy := h.Pos.Y - previousPos.Y
+				dx := ho.Pos.X - previousPos.X
+				dy := ho.Pos.Y - previousPos.Y
 				dist := math.Sqrt(dx*dx + dy*dy)
 
 				// Subtract radii of overlap
-				radSubtract := 2.0 * CS2px(md.Map.CircleSize)
+				radSubtract := 2.0 * float64(cs2px(md.Map.CircleSize))
 				if dist >= radSubtract {
 					dist -= radSubtract
 				} else {
 					dist /= 2.0
 				}
 
-				interval := float64(h.Time - previousTime)
+				interval := float64(ho.Time - previousTime)
 				if interval <= 0 {
 					interval = 1.0 // Prevent NaN
 				}
@@ -364,8 +367,8 @@ func calculateMovementData(md *MapData) {
 				md.Velocities.Y = append(md.Velocities.Y, dy/interval)
 			}
 
-			previousPos = h.Pos
-			previousTime = h.Time
+			previousPos = ho.Pos
+			previousTime = ho.Time
 		}
 	}
 
@@ -539,7 +542,12 @@ func calculateAngles(md *MapData) {
 
 	oldAngle := md.Angles[0] - 2*md.Angles[0]
 	for _, angle := range md.Angles {
-		md.AngleBonuses = append(md.AngleBonuses, calculateAngleBonus(angle, oldAngle))
+		bonus := calculateAngleBonus(angle, oldAngle)
+		if math.Abs(bonus) < 1e-12 {
+			bonus = 0
+		}
+
+		md.AngleBonuses = append(md.AngleBonuses, bonus)
 		oldAngle = angle
 	}
 }

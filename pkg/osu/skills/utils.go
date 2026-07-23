@@ -186,16 +186,16 @@ func erfInv(x float32) float32 {
 }
 
 // getValuePos finds the index of the closest preceding timing point offset
-func getValuePos(offsets []float64, value float64) int {
-	if len(offsets) == 0 {
+func getValuePos(list []float64, value float64) int {
+	if len(list) == 0 {
 		return -1
 	}
 
-	for i := 0; i < len(offsets)-1; i++ {
-		if offsets[i+1] > value {
+	for i := 0; i < len(list)-1; i++ {
+		if list[i+1] > value {
 			return i
 		}
 	}
 
-	return len(offsets) - 1
+	return len(list) - 1
 }
