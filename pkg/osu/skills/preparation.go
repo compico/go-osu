@@ -500,29 +500,29 @@ func roundInterval(interval, bucket int) int {
 // invariants for any well-formed input (every time either falls within
 // some interval, or triggers one of the two out-of-range checks above
 // it), so we return 0 there instead of attempting to replicate UB.
-func findTimingAt(targetPoints []TargetPoint, time float64) int {
+func findTimingAt(timings []TargetPoint, time float64) int {
 	start := 0
-	end := len(targetPoints) - 2
+	end := len(timings) - 2
 	if end < 0 {
 		return 0
 	}
 
 	for start <= end {
 		mid := (start + end) / 2
-		if btwn(targetPoints[mid].Time, time, targetPoints[mid+1].Time) {
+		if btwn(timings[mid].Time, time, timings[mid+1].Time) {
 			return mid + 1
 		}
-		if time < targetPoints[mid].Time {
+		if time < timings[mid].Time {
 			end = mid - 1
 		} else {
 			start = mid + 1
 		}
 	}
 
-	if time < targetPoints[0].Time {
+	if time < timings[0].Time {
 		return math.MinInt32
 	}
-	if time > targetPoints[len(targetPoints)-1].Time {
+	if time > timings[len(timings)-1].Time {
 		return math.MaxInt32
 	}
 	return 0
@@ -540,12 +540,14 @@ func calculateAngles(md *MapData) {
 		md.ReadingPoints[i+2].Angle = angle
 	}
 
+	if !(len(md.Angles) > 0) {
+		debugf("Skip angles")
+		return
+	}
+
 	oldAngle := md.Angles[0] - 2*md.Angles[0]
 	for _, angle := range md.Angles {
 		bonus := calculateAngleBonus(angle, oldAngle)
-		if math.Abs(bonus) < 1e-12 {
-			bonus = 0
-		}
 
 		md.AngleBonuses = append(md.AngleBonuses, bonus)
 		oldAngle = angle
@@ -588,9 +590,7 @@ func getVisibilityTimes(
 		fadeInDuration := 0.4 * float64(arToMs(ar))
 		fadeInTimeEnd := preemptTime + fadeInDuration
 
-		times.first = int(
-			getValue(preemptTime, fadeInTimeEnd, opacityStart),
-		)
+		times.first = int(getValue(preemptTime, fadeInTimeEnd, opacityStart))
 
 		if ho.Type.IsHitSlider() {
 			fadeOutDuration := 0.7 * (float64(ho.Time) - fadeInTimeEnd)
@@ -621,7 +621,7 @@ func getVisibilityTimes(
 		return times
 	}
 
-	fadeInDuration := min(float64(arToMs(ar)), 400)
+	fadeInDuration := float64(min(arToMs(ar), 400))
 	fadeInTimeEnd := preemptTime + fadeInDuration
 
 	times.first = int(

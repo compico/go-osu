@@ -98,7 +98,7 @@ func ApplyMods(original *osu.Beatmap, mods osu.Mod) *osu.Beatmap {
 		}
 
 		bm.ApproachRate =
-			math.Min(msToAR(arToMS(bm.ApproachRate)/speed), 11)
+			math.Min(msToAR(int(float64(arToMS(bm.ApproachRate))/speed)), 11)
 	}
 
 	// --- HT: ×0.75 скорость ---
@@ -123,24 +123,24 @@ func ApplyMods(original *osu.Beatmap, mods osu.Mod) *osu.Beatmap {
 		}
 
 		bm.ApproachRate =
-			msToAR(arToMS(bm.ApproachRate) / speed)
+			msToAR(int(float64(arToMS(bm.ApproachRate)) / speed))
 	}
 
 	return &bm
 }
 
-func arToMS(ar float64) float64 {
+func arToMS(ar float64) int {
 	if ar <= 5 {
-		return 1800 - (120 * ar)
+		return int(1800 - (120 * ar))
 	}
-	return 1950 - (150 * ar)
+	return int(1950 - (150 * ar))
 }
 
-func msToAR(ms float64) float64 {
+func msToAR(ms int) float64 {
 	if ms >= 1200 {
-		return (1800 - ms) / 120
+		return (1800 - float64(ms)) / 120
 	}
-	return (1950 - ms) / 150
+	return (1950 - float64(ms)) / 150
 }
 
 func clampF(value, minVal, maxVal float64) float64 {

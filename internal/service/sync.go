@@ -505,7 +505,13 @@ func (s *Syncer) computeOneBeatmap(parent context.Context, dbBm osu.DatabaseBeat
 				return
 			}
 
-			result := skills.ProcessBeatmap(full, mods, s.vars)
+			result := &skills.SkillResult{}
+
+			// Если HitObjects == 0, result останется с нулевыми значениями
+			// (Stamina, Tenacity, Agility и т.д. будут равны 0).
+			if len(full.HitObjects) > 0 {
+				result = skills.ProcessBeatmap(full, mods, s.vars)
+			}
 
 			select {
 			case rows <- model.SkillCache{
@@ -522,9 +528,6 @@ func (s *Syncer) computeOneBeatmap(parent context.Context, dbBm osu.DatabaseBeat
 				Reaction:  result.Skills.Reaction,
 			}:
 			case <-ctx.Done():
-				// Caller gave up (or process is shutting down) while we
-				// were about to enqueue a row — don't block forever on a
-				// full channel, just stop.
 				return
 			}
 		}

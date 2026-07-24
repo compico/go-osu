@@ -117,9 +117,10 @@ func calculateAimStrains(md *MapData, vars *Vars) {
 					strainPostSlider = strainBeforeSlider
 				}
 
-				debugf("[STRAIN] i=%v distRaw=%v distW=%v interval=%v timeW=%v angleBonus=%v strainPreSlider=%v strainPostSlider=%v oldstrainBeforeDecay=%v oldstainAfterDecay=%v finalStrain=%v\n",
+				distRaw := md.AimPoints[i].Pos.DistanceFrom(md.AimPoints[i-1].Pos)
+				debugf("[STRAIN] i=%v distRaw=%v distW=%v interval=%v timeW=%v angleBonus=%v strainPreSlider=%v strainPostSlider=%v oldstrainBeforeDecay=%v oldstrainAfterDecay=%v finalStrain=%v\n",
 					i,
-					md.AimPoints[i].Pos.DistanceFrom(md.AimPoints[i-1].Pos),
+					distRaw,
 					distance,
 					interval,
 					time,

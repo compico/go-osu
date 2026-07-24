@@ -6,6 +6,12 @@ import (
 
 // CalculateAgility агрегирует AimStrains в финальный скилл Agility.
 func CalculateAgility(md *MapData, vars *Vars) {
+	if !(len(md.AimPoints) > 0) {
+		debugf("Skip Agility")
+		md.Skills.Agility = 0
+		return
+	}
+
 	maxStrain := 0.0
 	maxIndex := 0
 
@@ -16,8 +22,6 @@ func CalculateAgility(md *MapData, vars *Vars) {
 		}
 	}
 
-	// Аналог C++:
-	// time := beatmap.aimPoints[index].time
 	time := md.AimPoints[maxIndex].Time
 
 	md.Skills.Agility = maxStrain

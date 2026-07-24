@@ -19,6 +19,8 @@ type Decoder struct {
 	seen                sectionMask
 	isSearchSection     bool
 	previousTimingPoint *osu.TimingPoint
+
+	hasApproachRate bool
 }
 
 func NewDecoder(data []byte) *Decoder {
@@ -44,6 +46,10 @@ func (d *Decoder) Decode(bm *osu.Beatmap) error {
 		if err != nil {
 			return err
 		}
+	}
+
+	if !d.hasApproachRate {
+		bm.ApproachRate = bm.OverallDifficulty
 	}
 
 	return nil
@@ -367,6 +373,7 @@ func (d *Decoder) parseDifficultySection(bm *osu.Beatmap) error {
 			return err
 		}
 		bm.ApproachRate = value
+		d.hasApproachRate = true
 		break
 	case "SliderMultiplier":
 		value, err := strconv.ParseFloat(v, 64)

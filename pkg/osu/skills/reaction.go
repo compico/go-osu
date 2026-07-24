@@ -49,15 +49,19 @@ func pattern2Reaction(p1, p2, p3 TargetPoint, arMs, csPx float64, vars *Vars) fl
 
 // getReactionSkillAt ports reaction.cpp's getReactionSkillAt.
 func getReactionSkillAt(targetPoints []TargetPoint, targetPoint TargetPoint, hitobjects []osu.HitObject, ar, cs float64, hidden bool, vars *Vars) float64 {
-	fadeInReactReq := vars.Get("Reaction", "FadeinPercent") // players can react once the note is 10% faded in
+	fadeInReactReq := vars.Get("Reaction", "FadeinPercent")
 	timeToReact := 0.0
 	index := findTimingAt(targetPoints, targetPoint.Time)
 
+	debugf("[REACTION] time=%v index=%v ar=%v cs=%v hidden=%d\n", targetPoint.Time, index, ar, cs, map[bool]int{false: 0, true: 1}[hidden])
+
 	if index >= len(targetPoints)-2 {
-		timeToReact = arToMS(ar)
+		timeToReact = float64(arToMS(ar))
+		debugf("[REACTION] branch=tail timeToReact=%v\n", timeToReact)
 	} else if index < 3 {
 		visibilityTimes := getVisibilityTimes(hitobjects[0], ar, hidden, fadeInReactReq, 1.0)
 		timeToReact = float64(hitobjects[0].Time - visibilityTimes.first)
+		debugf("[REACTION] branch=head visFirst=%v timeToReact=%v\n", visibilityTimes.first, timeToReact)
 	} else {
 		t1 := targetPoints[index]
 		t2 := targetPoints[index+1]
@@ -73,9 +77,18 @@ func getReactionSkillAt(targetPoints []TargetPoint, targetPoint TargetPoint, hit
 
 		result := pattern2Reaction(t1, t2, t3, float64(actualArTime), float64(cs2px(cs)), vars)
 		timeToReact = math.Sqrt(timeToReact*timeToReact + result*result)
+
+		debugf("[REACTION] branch=mid timeSinceStart=%v actualArTime=%v cs2px=%v result=%v timeToReact=%v\n",
+			timeSinceStart, actualArTime, cs2px(cs), result, timeToReact)
 	}
 
-	return vars.Get("Reaction", "VerScale") * math.Pow(react2Skill(timeToReact), vars.Get("Reaction", "CurveExp"))
+	verScale := vars.Get("Reaction", "VerScale")
+	curveExp := vars.Get("Reaction", "CurveExp")
+	skillVal := verScale * math.Pow(react2Skill(timeToReact), curveExp)
+
+	debugf("[REACTION] react2Skill=%v verScale=%v curveExp=%v skillVal=%v\n", react2Skill(timeToReact), verScale, curveExp, skillVal)
+
+	return skillVal
 }
 
 // CalculateReaction ports reaction.cpp's CalculateReaction.
@@ -86,7 +99,7 @@ func CalculateReaction(md *MapData, vars *Vars, hidden bool) {
 	weight := vars.Get("Reaction", "AvgWeighting")
 
 	for _, tick := range md.TargetPoints {
-		val := getReactionSkillAt(md.TargetPoints, tick, md.Map.HitObjects, md.Map.CircleSize, md.Map.ApproachRate, hidden, vars)
+		val := getReactionSkillAt(md.TargetPoints, tick, md.Map.HitObjects, md.Map.ApproachRate, md.Map.CircleSize, hidden, vars)
 
 		if val > mx {
 			mx = val
