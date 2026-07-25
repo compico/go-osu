@@ -56,7 +56,7 @@ func getReactionSkillAt(targetPoints []TargetPoint, targetPoint TargetPoint, hit
 	debugf("[REACTION] time=%v index=%v ar=%v cs=%v hidden=%d\n", targetPoint.Time, index, ar, cs, map[bool]int{false: 0, true: 1}[hidden])
 
 	if index >= len(targetPoints)-2 {
-		timeToReact = float64(arToMS(ar))
+		timeToReact = float64(arToMs(ar))
 		debugf("[REACTION] branch=tail timeToReact=%v\n", timeToReact)
 	} else if index < 3 {
 		visibilityTimes := getVisibilityTimes(hitobjects[0], ar, hidden, fadeInReactReq, 1.0)

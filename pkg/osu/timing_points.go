@@ -1,40 +1,63 @@
 package osu
 
+import "math"
+
 type TimingPoint struct {
-	Time                float64
-	BeatLength          float64
-	Meter               int
-	SampleSet           SampleSet
-	SampleIndex         int
-	Volume              int
-	Uninherited         bool
-	Effects             int
-	PreviousTimingPoint *TimingPoint
+	Time        float64
+	BeatLength  float64
+	Meter       int
+	SampleSet   SampleSet
+	SampleIndex int
+	Volume      int
+	Uninherited bool
+	Effects     int
 }
 
-func (tp *TimingPoint) BPM() float64 {
-	if tp.Uninherited {
-		if tp.BeatLength <= 0 {
-			return 0
+func (b *Beatmap) BPM() struct {
+	Min float64
+	Max float64
+	Avg float64
+} {
+	result := struct {
+		Min float64
+		Max float64
+		Avg float64
+	}{
+		Min: math.MaxFloat64,
+	}
+
+	var sum float64
+	var count int
+
+	for _, tp := range b.TimingPoints {
+		// Только красные линии задают BPM
+		if !tp.Uninherited || tp.BeatLength <= 0 {
+			continue
 		}
-		return 60000.0 / tp.BeatLength
+
+		bpm := 60000.0 / tp.BeatLength
+
+		if bpm < result.Min {
+			result.Min = bpm
+		}
+
+		if bpm > result.Max {
+			result.Max = bpm
+		}
+
+		sum += bpm
+		count++
 	}
 
-	if tp.PreviousTimingPoint != nil {
-		return tp.PreviousTimingPoint.BPM()
+	if count == 0 {
+		return struct {
+			Min float64
+			Max float64
+			Avg float64
+		}{}
 	}
 
-	return 0
-}
+	result.Avg = sum / float64(count)
 
-func (tp *TimingPoint) SliderVelocity() float64 {
-	if tp == nil {
-		return 1.0
-	}
-
-	if tp.Uninherited {
-		return 1.0
-	}
-
-	return -100.0 / tp.BeatLength
+	return result
 }

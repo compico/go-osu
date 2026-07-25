@@ -411,15 +411,14 @@ func (d *Decoder) parseTimingPointsSection(bm *osu.Beatmap) error {
 	effects := d.parseIntDefault(0)
 
 	bm.TimingPoints = append(bm.TimingPoints, osu.TimingPoint{
-		Time:                timeVal,
-		BeatLength:          beatLength,
-		Meter:               meter,
-		SampleSet:           osu.SampleSet(sampleSet),
-		SampleIndex:         sampleIndex,
-		Volume:              volume,
-		Uninherited:         uninherited == 1,
-		Effects:             effects,
-		PreviousTimingPoint: d.previousTimingPoint,
+		Time:        timeVal,
+		BeatLength:  beatLength,
+		Meter:       meter,
+		SampleSet:   osu.SampleSet(sampleSet),
+		SampleIndex: sampleIndex,
+		Volume:      volume,
+		Uninherited: uninherited == 1,
+		Effects:     effects,
 	})
 
 	d.previousTimingPoint = &bm.TimingPoints[len(bm.TimingPoints)-1]

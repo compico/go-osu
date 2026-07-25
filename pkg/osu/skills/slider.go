@@ -147,7 +147,7 @@ func approximateSliderPoints(md *MapData) {
 	}
 
 	// Loop over each HitObject and process Slider-specific math
-	for idx, _ := range md.Map.HitObjects {
+	for idx := range md.Map.HitObjects {
 		hitObject := &md.Map.HitObjects[idx]
 
 		if hitObject.Type.IsHitSlider() {
@@ -156,8 +156,22 @@ func approximateSliderPoints(md *MapData) {
 				timingPointIndex = 0
 			}
 
-			hitObject.ToRepeatTime = int(math.Round(-600/md.TimingPoints[timingPointIndex].Bpm*hitObject.PixelLength*md.TimingPoints[timingPointIndex].Sm) / (100.0 * md.Map.SliderMultiplier))
+			bpm := md.TimingPoints[timingPointIndex].Bpm
+			sm := md.TimingPoints[timingPointIndex].Sm
+
+			debugf("[SLIDERTIME] time=%v tpIndex=%v bpm=%v sm=%v mapSM=%v pixelLength=%v repeat=%v\n",
+				hitObject.Time, timingPointIndex, bpm, sm, md.Map.SliderMultiplier, hitObject.PixelLength, hitObject.Repeat)
+
+			hitObject.ToRepeatTime = int(math.Round(
+				((-600.0 / bpm) *
+					hitObject.PixelLength *
+					sm) /
+					(100.0 * md.Map.SliderMultiplier),
+			))
 			hitObject.EndTime = hitObject.Time + hitObject.ToRepeatTime*hitObject.Repeat
+
+			debugf("[SLIDERTIME] toRepeatTime=%v endTime=%v\n", hitObject.ToRepeatTime, hitObject.EndTime)
+
 			for i := hitObject.Time; i < hitObject.EndTime; i += hitObject.ToRepeatTime {
 				if i > hitObject.EndTime {
 					break
@@ -168,6 +182,9 @@ func approximateSliderPoints(md *MapData) {
 			tickInterval := int(beatLengths[timingPointIndex] / md.Map.SliderTickRate)
 			const errInterval = 10
 			j := 1
+
+			debugf("[SLIDERTIME] beatLength=%v st=%v tickInterval=%v\n",
+				beatLengths[timingPointIndex], md.Map.SliderTickRate, tickInterval)
 
 			for i := hitObject.Time + tickInterval; i < (hitObject.EndTime - errInterval); i += tickInterval {
 				if i > hitObject.EndTime {
@@ -182,6 +199,8 @@ func approximateSliderPoints(md *MapData) {
 				hitObject.Ticks = append(hitObject.Ticks, tickTime)
 				j++
 			}
+
+			debugf("[SLIDERTIME] ticks.size()=%v ticks=%v\n", len(hitObject.Ticks), hitObject.Ticks)
 
 			if (absInt(hitObject.EndTime-hitObject.Time) < 100) && (len(hitObject.Ticks) == 0) {
 				ho := &osu.HitObject{
@@ -201,6 +220,8 @@ func approximateSliderPoints(md *MapData) {
 					PixelLength:  100,
 					CurveType:    osu.LinearCurve,
 				}
+
+				debugf("[SLIDERTIME] short slider conversion at time=%v\n", hitObject.Time)
 
 				NewSlider(ho, true)
 				md.Map.HitObjects[idx] = *ho

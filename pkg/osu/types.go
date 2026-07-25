@@ -291,40 +291,40 @@ const (
 	HitManiaLong      HitObjectType = 128
 )
 
-func (hot HitObjectType) IsHitNormal() bool {
-	return hot&HitNormal != 0
+func (ho HitObjectType) IsHitNormal() bool {
+	return ho&HitNormal != 0
 }
 
-func (hot HitObjectType) IsHitSlider() bool {
-	return hot&HitSlider != 0
+func (ho HitObjectType) IsHitSlider() bool {
+	return ho&HitSlider != 0
 }
 
-func (hot HitObjectType) IsHitNewCombo() bool {
-	return hot&HitNewCombo != 0
+func (ho HitObjectType) IsHitNewCombo() bool {
+	return ho&HitNewCombo != 0
 }
 
-func (hot HitObjectType) IsHitNormalNewCombo() bool {
-	return hot&HitNormalNewCombo != 0
+func (ho HitObjectType) IsHitNormalNewCombo() bool {
+	return ho&HitNormalNewCombo != 0
 }
 
-func (hot HitObjectType) IsHitSliderNewCombo() bool {
-	return hot&HitSliderNewCombo != 0
+func (ho HitObjectType) IsHitSliderNewCombo() bool {
+	return ho&HitSliderNewCombo != 0
 }
 
-func (hot HitObjectType) IsHitSpinner() bool {
-	return hot&HitSpinner != 0
+func (ho HitObjectType) IsHitSpinner() bool {
+	return ho&HitSpinner != 0
 }
 
-func (hot HitObjectType) IsHitColourHax() bool {
-	return hot&HitColourHax != 0
+func (ho HitObjectType) IsHitColourHax() bool {
+	return ho&HitColourHax != 0
 }
 
-func (hot HitObjectType) IsHitHold() bool {
-	return hot&HitHold != 0
+func (ho HitObjectType) IsHitHold() bool {
+	return ho&HitHold != 0
 }
 
-func (hot HitObjectType) IsHitManiaLong() bool {
-	return hot&HitManiaLong != 0
+func (ho HitObjectType) IsHitManiaLong() bool {
+	return ho&HitManiaLong != 0
 }
 
 // CurveType Curve Type

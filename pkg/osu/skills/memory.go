@@ -15,8 +15,12 @@ func CalculateMemory(md *MapData, vars *Vars) float64 {
 	old := md.Map.HitObjects[0]
 	combo := 0
 
+	debugf("[MEMORY] hitObjectCount=%v\n", len(md.Map.HitObjects))
 	for i := 1; i < len(md.Map.HitObjects); i++ {
 		ho := md.Map.HitObjects[i]
+		if ho.Type.IsHitSpinner() {
+			continue
+		}
 
 		memPoints := 0.0
 		observableDist := 160
@@ -31,7 +35,6 @@ func CalculateMemory(md *MapData, vars *Vars) float64 {
 
 		sliderBonusFactor := 1.0
 
-		// ВАЖНО: old, а не ho
 		if old.Type.IsHitSlider() {
 			sliderBonusFactor = vars.Get("Memory", "SliderBuff")
 		}
@@ -112,6 +115,9 @@ func CalculateMemory(md *MapData, vars *Vars) float64 {
 
 		old = ho
 		totalMemPoints += memPoints
+
+		debugf("[MEMORY] i=%v combo=%v observableDist=%v sliderBonus=%v observable=%v helpPixels=%v memPoints=%v totalMemPoints=%v hitObjectType=%v\n",
+			i, combo, observableDist, sliderBonusFactor, map[bool]int{false: 0, true: 1}[observable], helpPixels, memPoints, totalMemPoints, ho.Type)
 	}
 
 	md.Skills.Memory = vars.Get("Memory", "TotalMult") *
@@ -119,6 +125,7 @@ func CalculateMemory(md *MapData, vars *Vars) float64 {
 
 	return md.Skills.Memory
 }
+
 func IsObservableFrom(obj osu.HitObject, distance int, fromPos vector2d.Vector2dd) bool {
 	dist := obj.Pos.DistanceFrom(fromPos)
 
@@ -130,17 +137,15 @@ func IsObservableFrom(obj osu.HitObject, distance int, fromPos vector2d.Vector2d
 }
 
 func GetApproachRelativeSize(time int, hitTime int, ar float64) float64 {
-	ms := arToMs(ar)
-
 	if hitTime < time {
-		return 0
+		return 1
 	}
-	if hitTime-ms > time {
+	if hitTime-arToMs(ar) > time {
 		return 0
 	}
 
-	diff := hitTime - time
-	interval := ms
+	diff := float64(hitTime - time)
+	interval := float64(arToMs(ar))
 
-	return float64(1 + 3*(diff/interval))
+	return 1 + 3*(diff/interval)
 }

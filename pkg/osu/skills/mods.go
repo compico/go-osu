@@ -13,59 +13,53 @@ import (
 //
 // Порядок применения: HR/EZ → DT/HT (как в оригинальной osu!).
 func ApplyMods(original *osu.Beatmap, mods osu.Mod) *osu.Beatmap {
-	if mods == 0 {
-		return original // оптимизация: без модов — возвращаем оригинал
+	bm := *original
+
+	// --- Глубокое копирование HitObjects, с фильтрацией спиннеров/hold как в оригинальном C++ парсере ---
+	// (C++ FileReader никогда не добавляет Spinner/Hold в bData.hitObjects)
+	bm.HitObjects = make([]osu.HitObject, 0, len(original.HitObjects))
+	for i := range original.HitObjects {
+		src := &original.HitObjects[i]
+
+		if src.Type.IsHitSpinner() || src.Type.IsHitHold() {
+			continue
+		}
+
+		ho := *src
+		if len(src.Curves) > 0 {
+			ho.Curves = make([]vector2d.Vector2dd, len(src.Curves))
+			copy(ho.Curves, src.Curves)
+		}
+		if len(src.LerpPoints) > 0 {
+			ho.LerpPoints = make([]vector2d.Vector2dd, len(src.LerpPoints))
+			copy(ho.LerpPoints, src.LerpPoints)
+		}
+		if len(src.RepeatTimes) > 0 {
+			ho.RepeatTimes = make([]int, len(src.RepeatTimes))
+			copy(ho.RepeatTimes, src.RepeatTimes)
+		}
+		if len(src.Ticks) > 0 {
+			ho.Ticks = make([]int, len(src.Ticks))
+			copy(ho.Ticks, src.Ticks)
+		}
+
+		bm.HitObjects = append(bm.HitObjects, ho)
 	}
 
-	bm := *original
+	if mods == 0 {
+		return &bm
+	}
 
 	// --- Глубокое копирование TimingPoints ---
 	bm.TimingPoints = make([]osu.TimingPoint, len(original.TimingPoints))
 	copy(bm.TimingPoints, original.TimingPoints)
-	// Восстанавливаем ссылки PreviousTimingPoint на новый слайс
-	for i := range bm.TimingPoints {
-		if i > 0 {
-			bm.TimingPoints[i].PreviousTimingPoint = &bm.TimingPoints[i-1]
-		}
-	}
 
-	// --- Глубокое копирование HitObjects ---
-	bm.HitObjects = make([]osu.HitObject, len(original.HitObjects))
-	for i := range original.HitObjects {
-		bm.HitObjects[i] = original.HitObjects[i]
-		if len(original.HitObjects[i].Curves) > 0 {
-			bm.HitObjects[i].Curves = make([]vector2d.Vector2dd, len(original.HitObjects[i].Curves))
-			copy(bm.HitObjects[i].Curves, original.HitObjects[i].Curves)
-		}
-		if len(original.HitObjects[i].LerpPoints) > 0 {
-			bm.HitObjects[i].LerpPoints = make([]vector2d.Vector2dd, len(original.HitObjects[i].LerpPoints))
-			copy(bm.HitObjects[i].LerpPoints, original.HitObjects[i].LerpPoints)
-		}
-		if len(original.HitObjects[i].RepeatTimes) > 0 {
-			bm.HitObjects[i].RepeatTimes = make([]int, len(original.HitObjects[i].RepeatTimes))
-			copy(bm.HitObjects[i].RepeatTimes, original.HitObjects[i].RepeatTimes)
-		}
-		if len(original.HitObjects[i].Ticks) > 0 {
-			bm.HitObjects[i].Ticks = make([]int, len(original.HitObjects[i].Ticks))
-			copy(bm.HitObjects[i].Ticks, original.HitObjects[i].Ticks)
-		}
-	}
-
-	// --- HR: +40% AR/OD/HP, +30% CS, инверсия Y ---
+	// --- HR: +40% AR/OD/HP, +30% CS ---
 	if mods&osu.HR != 0 {
 		bm.ApproachRate = math.Min(bm.ApproachRate*1.4, 10)
 		bm.OverallDifficulty = math.Min(bm.OverallDifficulty*1.4, 10)
 		bm.HPDrainRate = math.Min(bm.HPDrainRate*1.4, 10)
 		bm.CircleSize = math.Min(bm.CircleSize*1.3, 10)
-
-		for i := range bm.HitObjects {
-			bm.HitObjects[i].Pos.Y = 384 - bm.HitObjects[i].Pos.Y
-
-			for j := range bm.HitObjects[i].Curves {
-				bm.HitObjects[i].Curves[j].Y =
-					384 - bm.HitObjects[i].Curves[j].Y
-			}
-		}
 	}
 
 	// --- EZ: -50% ко всем параметрам ---
@@ -81,24 +75,18 @@ func ApplyMods(original *osu.Beatmap, mods osu.Mod) *osu.Beatmap {
 		const speed = 1.5
 
 		for i := range bm.TimingPoints {
-			bm.TimingPoints[i].Time =
-				math.Ceil(bm.TimingPoints[i].Time / speed)
-
+			bm.TimingPoints[i].Time = math.Ceil(bm.TimingPoints[i].Time / speed)
 			if bm.TimingPoints[i].Uninherited {
 				bm.TimingPoints[i].BeatLength /= speed
 			}
 		}
 
 		for i := range bm.HitObjects {
-			bm.HitObjects[i].Time =
-				int(math.Ceil(float64(bm.HitObjects[i].Time) / speed))
-
-			bm.HitObjects[i].EndTime =
-				int(math.Ceil(float64(bm.HitObjects[i].EndTime) / speed))
+			bm.HitObjects[i].Time = int(math.Ceil(float64(bm.HitObjects[i].Time) / speed))
+			bm.HitObjects[i].EndTime = int(math.Ceil(float64(bm.HitObjects[i].EndTime) / speed))
 		}
 
-		bm.ApproachRate =
-			math.Min(msToAR(int(float64(arToMS(bm.ApproachRate))/speed)), 11)
+		bm.ApproachRate = math.Min(msToAR(int(float64(arToMs(bm.ApproachRate))/speed)), 11)
 	}
 
 	// --- HT: ×0.75 скорость ---
@@ -106,34 +94,21 @@ func ApplyMods(original *osu.Beatmap, mods osu.Mod) *osu.Beatmap {
 		const speed = 0.75
 
 		for i := range bm.TimingPoints {
-			bm.TimingPoints[i].Time =
-				math.Ceil(bm.TimingPoints[i].Time / speed)
-
+			bm.TimingPoints[i].Time = math.Ceil(bm.TimingPoints[i].Time / speed)
 			if bm.TimingPoints[i].Uninherited {
 				bm.TimingPoints[i].BeatLength /= speed
 			}
 		}
 
 		for i := range bm.HitObjects {
-			bm.HitObjects[i].Time =
-				int(math.Ceil(float64(bm.HitObjects[i].Time) / speed))
-
-			bm.HitObjects[i].EndTime =
-				int(math.Ceil(float64(bm.HitObjects[i].EndTime) / speed))
+			bm.HitObjects[i].Time = int(math.Ceil(float64(bm.HitObjects[i].Time) / speed))
+			bm.HitObjects[i].EndTime = int(math.Ceil(float64(bm.HitObjects[i].EndTime) / speed))
 		}
 
-		bm.ApproachRate =
-			msToAR(int(float64(arToMS(bm.ApproachRate)) / speed))
+		bm.ApproachRate = msToAR(int(float64(arToMs(bm.ApproachRate)) / speed))
 	}
 
 	return &bm
-}
-
-func arToMS(ar float64) int {
-	if ar <= 5 {
-		return int(1800 - (120 * ar))
-	}
-	return int(1950 - (150 * ar))
 }
 
 func msToAR(ms int) float64 {
