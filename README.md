@@ -99,7 +99,7 @@ Database migrations are applied automatically on every startup — there is no m
 make build-prod
 ```
 
-This first builds the frontend (`npm run build` → `frontend/dist`), then the Go binary. Note that frontend assets are **not embedded** into the binary via `go:embed` — they're read from disk (`frontend/dist/.vite/manifest.json`) at runtime, so you need to ship the `frontend/dist` folder alongside the binary. Dev vs. production mode is controlled by the `app.env` field in `config.yml`.
+This first builds the frontend (`npm run build` → `frontend/dist`), then compiles the Go binary. Frontend assets are embedded into the binary at compile time via `go:embed`, so the resulting binary in `bin/` is fully self-contained — you don't need to ship the `frontend/dist` folder alongside it, and the target machine doesn't need Node.js/npm at all. Dev vs. production mode is controlled by the `app.env` field in `config.yml`.
 
 ## Configuration (`config.yml`)
 
@@ -133,7 +133,7 @@ The `pkg/osu/skills` package contains beatmap difficulty analysis algorithms por
 
 The algorithms compute a set of skill-related metrics for a beatmap: Stamina, Tenacity, Agility, Accuracy, Precision, Memory, Reaction, and other derived values.
 
-This is a **port** from another language — numerical results may differ from the original due to implementation and language-specific details. The goal of this package is to preserve the analysis methodology, not to guarantee bit-for-bit identical results. The algorithms are expected to evolve as the implementation is refined.
+This is a **port** from another language. The test suite compares output against the original implementation across a large set of beatmaps, and results now match it almost exactly — remaining differences, where they occur, are negligible and come down to implementation details rather than to the methodology itself. The algorithms may still be refined further as edge cases are found.
 
 ## License
 
