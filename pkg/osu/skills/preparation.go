@@ -529,6 +529,11 @@ func findTimingAt(timings []TargetPoint, time float64) int {
 }
 
 func calculateAngles(md *MapData) {
+	md.AngleBonuses = md.AngleBonuses[:0]
+
+	var oldAngle float64
+	first := true
+
 	for i := 0; i+2 < len(md.AimPoints); i++ {
 		angle := getDirAngle(
 			md.AimPoints[i].Pos,
@@ -536,23 +541,19 @@ func calculateAngles(md *MapData) {
 			md.AimPoints[i+2].Pos,
 		)
 
-		md.Angles = append(md.Angles, angle)
 		md.ReadingPoints[i+2].Angle = angle
-	}
 
-	if !(len(md.Angles) > 0) {
-		return
-	}
+		if first {
+			oldAngle = -angle
+			first = false
+		}
 
-	oldAngle := md.Angles[0] - 2*md.Angles[0]
-	for _, angle := range md.Angles {
 		bonus := calculateAngleBonus(angle, oldAngle)
-
 		md.AngleBonuses = append(md.AngleBonuses, bonus)
+
 		oldAngle = angle
 	}
 }
-
 func calculateAngleBonus(angle, oldAngle float64) float64 {
 	absAngle := math.Abs(angle)
 

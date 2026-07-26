@@ -118,10 +118,6 @@ type MapData struct {
 
 	TimingPoints []TimingPoint
 
-	// TimeMapper is a helper for using a hit object's time as an index
-	// into Map.HitObjects (ported from Beatmap.timeMapper).
-	TimeMapper map[int]int
-
 	// Aim
 	Velocities Velocities
 	Distances  []float64
@@ -129,7 +125,6 @@ type MapData struct {
 	AimPoints  []AimPoint
 
 	// Reading
-	Angles         []float64
 	AngleBonuses   []float64
 	ReadingStrains []float64
 	ReadingPoints  []ReadingPoint
@@ -157,7 +152,6 @@ func NewMapData(bm *osu.Beatmap, mods osu.Mod) *MapData {
 	return &MapData{
 		Map:        bm,
 		Mods:       mods,
-		TimeMapper: make(map[int]int, len(bm.HitObjects)),
 		Streams:    make(map[int][][]int),
 		Bursts:     make(map[int][][]int),
 		TapStrains: make([]float64, 0),
