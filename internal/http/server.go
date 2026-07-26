@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/compico/go-osu/frontend"
 	"github.com/compico/go-osu/internal/config"
 	"github.com/compico/go-osu/internal/http/handler/osuapi"
 	"github.com/compico/go-osu/internal/http/view"
@@ -97,7 +98,9 @@ func (s *Server) RegisterRoutes(
 	s.apiRouter.Get("/osu/bg/:beatmap_id<int>.jpg", osuGetBackgroundHandler.Handle)
 
 	if !v.IsDev() {
-		s.app.Use("/assets", static.New(frontendAssetsDir()))
+		s.app.Use("/assets", static.New("dist/assets", static.Config{
+			FS: frontend.Dist,
+		}))
 	}
 
 	s.app.Get("/*", v.IndexHandler)

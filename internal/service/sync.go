@@ -505,13 +505,7 @@ func (s *Syncer) computeOneBeatmap(parent context.Context, dbBm osu.DatabaseBeat
 				return
 			}
 
-			result := &skills.SkillResult{}
-
-			// Если HitObjects == 0, result останется с нулевыми значениями
-			// (Stamina, Tenacity, Agility и т.д. будут равны 0).
-			if len(full.HitObjects) > 0 {
-				result = skills.ProcessBeatmap(full, mods, s.vars)
-			}
+			result := skills.ProcessBeatmap(full, mods, s.vars)
 
 			select {
 			case rows <- model.SkillCache{

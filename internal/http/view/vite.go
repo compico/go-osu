@@ -14,8 +14,9 @@ import (
 	"bytes"
 	"fmt"
 	"html/template"
-	"os"
+	"io/fs"
 
+	"github.com/compico/go-osu/frontend"
 	"github.com/gofiber/fiber/v3"
 	"github.com/olivere/vite"
 )
@@ -60,7 +61,11 @@ func New(isDev bool) (*View, error) {
 	}
 
 	if !isDev {
-		cfg.FS = os.DirFS(frontendDir + "/dist")
+		sub, err := fs.Sub(frontend.Dist, "dist")
+		if err != nil {
+			return nil, fmt.Errorf("vite view: sub fs: %w", err)
+		}
+		cfg.FS = sub
 	}
 
 	fragment, err := vite.HTMLFragment(cfg)
