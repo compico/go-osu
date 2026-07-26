@@ -270,6 +270,16 @@ func (s *Syncer) mapRawBeatmaps(raw []osu.DatabaseBeatmap) ([]model.BeatmapSet, 
 			continue
 		}
 
+		if bm.BeatmapID <= 0 || bm.BeatmapSetID <= 0 {
+			s.logger.Warn("skipping unsubmitted/local beatmap (invalid id)",
+				"beatmap_id", bm.BeatmapID,
+				"beatmap_set_id", bm.BeatmapSetID,
+				"folder", bm.FolderName,
+				"file", bm.NameOfTheOsuFile,
+			)
+			continue
+		}
+
 		if _, ok := setsByID[bm.BeatmapSetID]; !ok {
 			setsByID[bm.BeatmapSetID] = model.BeatmapSet{
 				BeatmapSetID:  bm.BeatmapSetID,
@@ -475,6 +485,16 @@ loop:
 // rather than continuing to burn CPU in the background after being
 // reported as timed out. Returns true if it timed out.
 func (s *Syncer) computeOneBeatmap(parent context.Context, dbBm osu.DatabaseBeatmap, rows chan<- model.SkillCache) bool {
+	if dbBm.BeatmapID <= 0 {
+		s.logger.Warn("skipping skill calc for unsubmitted/local beatmap (invalid beatmap_id)",
+			"beatmap_id", dbBm.BeatmapID,
+			"beatmap_set_id", dbBm.BeatmapSetID,
+			"folder", dbBm.FolderName,
+			"file", dbBm.NameOfTheOsuFile,
+		)
+		return false
+	}
+
 	ctx, cancel := context.WithTimeout(parent, s.skillCalcTimeout)
 	defer cancel()
 
@@ -490,6 +510,14 @@ func (s *Syncer) computeOneBeatmap(parent context.Context, dbBm osu.DatabaseBeat
 			return
 		}
 
+		if full.BeatmapID != int(dbBm.BeatmapID) {
+			full.BeatmapID = int(dbBm.BeatmapID)
+		}
+
+		if full.BeatmapSetID != int(dbBm.BeatmapSetID) {
+			full.BeatmapSetID = int(dbBm.BeatmapSetID)
+		}
+
 		md5Hash, err := model.ParseMD5Hash(dbBm.MD5Hash)
 		if err != nil {
 			s.logger.Warn("skipping beatmap, invalid md5 hash", "beatmap_id", dbBm.BeatmapID, "error", err)
@@ -497,10 +525,6 @@ func (s *Syncer) computeOneBeatmap(parent context.Context, dbBm osu.DatabaseBeat
 		}
 
 		for _, mods := range s.modCombinations {
-			// Checked between combinations rather than only once up
-			// front, so cancellation partway through a beatmap's 36
-			// combinations still stops the remaining work instead of
-			// running them to completion after the deadline.
 			if ctx.Err() != nil {
 				return
 			}
@@ -509,6 +533,7 @@ func (s *Syncer) computeOneBeatmap(parent context.Context, dbBm osu.DatabaseBeat
 
 			select {
 			case rows <- model.SkillCache{
+				// импорта/синка с сервером.
 				BeatmapID: dbBm.BeatmapID,
 				Mods:      int32(mods),
 				MD5Hash:   md5Hash,

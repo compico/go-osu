@@ -540,6 +540,10 @@ func calculateAngles(md *MapData) {
 		md.ReadingPoints[i+2].Angle = angle
 	}
 
+	if !(len(md.Angles) > 0) {
+		return
+	}
+
 	oldAngle := md.Angles[0] - 2*md.Angles[0]
 	for _, angle := range md.Angles {
 		bonus := calculateAngleBonus(angle, oldAngle)

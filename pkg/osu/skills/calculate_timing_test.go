@@ -93,50 +93,102 @@ func TestProcessBeatmap_StepTiming_AllMods(t *testing.T) {
 				})
 
 				if stepOK {
-					stepOK = stepOK && runStepAllMods(t, "PrepareMapData", modsLabel, totals, counts, hangs, func() {
-						prepareMapData(md)
+					stepOK = stepOK && runStepAllMods(t, "prepareTimingPoints", modsLabel, totals, counts, hangs, func() {
+						prepareTimingPoints(md)
 					})
 				}
+				if stepOK {
+					stepOK = stepOK && runStepAllMods(t, "approximateSliderPoints", modsLabel, totals, counts, hangs, func() {
+						approximateSliderPoints(md)
+					})
+				}
+				if stepOK {
+					stepOK = stepOK && runStepAllMods(t, "bakeSliderData", modsLabel, totals, counts, hangs, func() {
+						bakeSliderData(md)
+					})
+				}
+				if stepOK {
+					stepOK = stepOK && runStepAllMods(t, "calculateMovementData", modsLabel, totals, counts, hangs, func() {
+						calculateMovementData(md)
+					})
+				}
+				if stepOK {
+					stepOK = stepOK && runStepAllMods(t, "gatherTargetPoints", modsLabel, totals, counts, hangs, func() {
+						gatherTargetPoints(md)
+					})
+				}
+				if stepOK {
+					stepOK = stepOK && runStepAllMods(t, "gatherAimAndReadingPoints", modsLabel, totals, counts, hangs, func() {
+						gatherAimAndReadingPoints(md)
+					})
+				}
+
+				if stepOK {
+					stepOK = stepOK && runStepAllMods(t, "calculateAngles", modsLabel, totals, counts, hangs, func() {
+						calculateAngles(md)
+					})
+				}
+
+				if stepOK {
+					stepOK = stepOK && runStepAllMods(t, "calculatePressIntervals", modsLabel, totals, counts, hangs, func() {
+						calculatePressIntervals(md)
+					})
+				}
+
+				if stepOK {
+					stepOK = stepOK && runStepAllMods(t, "gatherTapPatterns", modsLabel, totals, counts, hangs, func() {
+						gatherTapPatterns(md)
+					})
+				}
+
 				if stepOK {
 					stepOK = stepOK && runStepAllMods(t, "CalculateStamina", modsLabel, totals, counts, hangs, func() {
 						CalculateStamina(md, vars)
 					})
 				}
+
 				if stepOK {
 					stepOK = stepOK && runStepAllMods(t, "CalculateTenacity", modsLabel, totals, counts, hangs, func() {
 						CalculateTenacity(md, vars)
 					})
 				}
+
 				if stepOK {
 					stepOK = stepOK && runStepAllMods(t, "CalculateAimStrains", modsLabel, totals, counts, hangs, func() {
 						calculateAimStrains(md, vars)
 					})
 				}
+
 				if stepOK {
 					stepOK = stepOK && runStepAllMods(t, "CalculateAgility", modsLabel, totals, counts, hangs, func() {
 						CalculateAgility(md, vars)
 					})
 				}
+
 				if stepOK {
 					stepOK = stepOK && runStepAllMods(t, "CalculatePrecision", modsLabel, totals, counts, hangs, func() {
 						CalculatePrecision(md, vars)
 					})
 				}
+
 				if stepOK {
 					stepOK = stepOK && runStepAllMods(t, "CalculateReading", modsLabel, totals, counts, hangs, func() {
 						CalculateReading(md, vars, md.HasMod(osu.HD))
 					})
 				}
+
 				if stepOK {
 					stepOK = stepOK && runStepAllMods(t, "CalculateReaction", modsLabel, totals, counts, hangs, func() {
 						CalculateReaction(md, vars, md.HasMod(osu.HD))
 					})
 				}
+
 				if stepOK {
 					stepOK = stepOK && runStepAllMods(t, "CalculateMemory", modsLabel, totals, counts, hangs, func() {
 						CalculateMemory(md, vars)
 					})
 				}
+
 				if stepOK {
 					stepOK = stepOK && runStepAllMods(t, "CalculateAccuracy", modsLabel, totals, counts, hangs, func() {
 						CalculateAccuracy(md, vars)
