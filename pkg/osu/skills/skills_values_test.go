@@ -296,6 +296,20 @@ var skillsReference = []SkillsReference{
 			Memory:    603.72827693683132,
 		},
 	},
+	{
+		BeatmapID: 1695388,
+		Mods:      osu.NM,
+		Skills: Skills{
+			Stamina:   255.29354781956883,
+			Tenacity:  248.14680003266324,
+			Agility:   631.04973061269436,
+			Accuracy:  464.5690199154655,
+			Precision: 265.18326936461318,
+			Reaction:  303.62115093805528,
+			Reading:   11.123962183139378,
+			Memory:    0,
+		},
+	},
 }
 
 func TestSkillsValues_CompareWithReference(t *testing.T) {

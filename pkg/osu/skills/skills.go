@@ -32,6 +32,23 @@ func ProcessBeatmap(bm *osu.Beatmap, mods osu.Mod, vars *Vars) *SkillResult {
 		)
 	}
 
+	if len(modifiedBm.HitObjects) == 0 {
+		return &SkillResult{
+			Mods:       mods,
+			ModsString: mods.String(),
+			Skills: Skills{
+				Stamina:   0,
+				Tenacity:  0,
+				Agility:   0,
+				Precision: 0,
+				Reading:   0,
+				Memory:    0,
+				Accuracy:  0,
+				Reaction:  0,
+			},
+		}
+	}
+
 	md := NewMapData(modifiedBm, mods)
 	if debug {
 		mdBpm := md.Map.BPM()
