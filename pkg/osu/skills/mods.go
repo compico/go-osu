@@ -42,6 +42,9 @@ func ApplyMods(original *osu.Beatmap, mods osu.Mod) *osu.Beatmap {
 			ho.Ticks = make([]int, len(src.Ticks))
 			copy(ho.Ticks, src.Ticks)
 		}
+		if ho.Type.IsHitNormal() {
+			ho.EndPoint = ho.Pos
+		}
 
 		bm.HitObjects = append(bm.HitObjects, ho)
 	}

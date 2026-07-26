@@ -105,6 +105,8 @@ func CalculateMemory(md *MapData, vars *Vars) float64 {
 						(dist / float64(ho.Time-old.Time))
 				}
 			}
+			debugf("[MEMORY-DIST] i=%v curPos=(%v,%v) oldEndPoint=(%v,%v) oldType=%v dist=%v\n",
+				i, ho.Pos.X, ho.Pos.Y, old.EndPoint.X, old.EndPoint.Y, old.Type, ho.Pos.DistanceFrom(old.EndPoint))
 		}
 
 		if ho.Type.IsHitNormal() || ho.Type.IsHitSpinner() {
