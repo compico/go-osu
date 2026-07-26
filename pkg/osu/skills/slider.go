@@ -223,7 +223,6 @@ func approximateSliderPoints(md *MapData) {
 
 				debugf("[SLIDERTIME] short slider conversion at time=%v\n", hitObject.Time)
 
-				NewSlider(ho, true)
 				md.Map.HitObjects[idx] = *ho
 			}
 		} else {
