@@ -43,6 +43,10 @@ jobs:
           mkdir -p release/linux
           GOOS=linux GOARCH=amd64 \
             go build \
+             -ldflags "\
+              -X main.Version=${GITHUB_REF_NAME} \
+              -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)\
+             " \
             -o release/linux/goosu \
             ./cmd/
 
@@ -51,15 +55,30 @@ jobs:
         run: |
           mkdir -p release/windows
           GOOS=windows GOARCH=amd64 \
-            go build \
-            -o release/windows/goosu.exe \
+           go build \
+            -ldflags "\
+              -X main.Version=${GITHUB_REF_NAME} \
+              -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)\
+            " \
+            -o goosu.exe \
             ./cmd/
 
 
-      - name: Copy config
+      - name: Generate config
         run: |
-          cp config.yml release/linux/
-          cp config.yml release/windows/
+          cat > release/windows/config.yml <<EOF
+          app:
+            env: "production"
+          http:
+            port: 3000
+          database:
+            path: "goosu.db"
+          log:
+            level: "warn"
+          osu:
+            path: ""
+          EOF
+          cp release/windows/config.yml release/linux/config.yml
 
 
       - name: Create archives
