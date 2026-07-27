@@ -1,8 +1,8 @@
 # Go-osu
 
 ![sync](img/1.png)
-![dark theme](img/2.png)
-![light theme](img/3.png)
+![dark](img/2.png)
+![light](img/3.png)
 
 [English version](README.md)
 
