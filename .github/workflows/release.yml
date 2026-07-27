@@ -50,19 +50,14 @@ jobs:
             -o release/linux/goosu \
             ./cmd/
 
-
       - name: Build Windows
         run: |
           mkdir -p release/windows
           GOOS=windows GOARCH=amd64 \
            go build \
-            -ldflags "\
-              -X main.Version=${GITHUB_REF_NAME} \
-              -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)\
-             " \
+            -ldflags "-X main.Version=${GITHUB_REF_NAME} -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             -o release/windows/goosu.exe \
             ./cmd/
-
 
       - name: Generate config
         run: |
