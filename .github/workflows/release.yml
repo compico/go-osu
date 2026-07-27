@@ -1,0 +1,76 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+
+      - name: Install frontend deps
+        run: npm ci
+
+
+      - name: Build frontend
+        run: npm run build
+
+
+      - name: Build Linux
+        run: |
+          mkdir -p release/linux
+          GOOS=linux GOARCH=amd64 \
+            go build \
+            -o release/linux/goosu \
+            ./cmd/
+
+
+      - name: Build Windows
+        run: |
+          mkdir -p release/windows
+          GOOS=windows GOARCH=amd64 \
+            go build \
+            -o release/windows/goosu.exe \
+            ./cmd/
+
+
+      - name: Copy config
+        run: |
+          cp config.yml release/linux/
+          cp config.yml release/windows/
+
+
+      - name: Create archives
+        run: |
+          tar -czf goosu-linux-amd64.tar.gz -C release/linux .
+          cd release/windows && zip ../../goosu-windows-amd64.zip .
+
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            goosu-linux-amd64.tar.gz
+            goosu-windows-amd64.zip

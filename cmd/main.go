@@ -13,11 +13,17 @@ import (
 
 func main() {
 	ctx := context.Background()
+
+	args := os.Args
+	if len(args) == 1 || (len(args) > 1 && args[1][0] == '-') {
+		args = append([]string{args[0], "http"}, args[1:]...)
+	}
+
 	cmd := &cli.Command{
 		Commands: commands.Commands,
 	}
 
-	if err := cmd.Run(ctx, os.Args); err != nil {
+	if err := cmd.Run(ctx, args); err != nil {
 		log.Fatalf("%v\n", err)
 	}
 }
