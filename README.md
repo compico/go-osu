@@ -1,8 +1,8 @@
 # Go-osu
 
 ![sync](img/1.png)
-![dark theme](img/2.png)
-![light theme](img/3.png)
+![dark](img/2.png)
+![light](img/3.png)
 
 [Русская версия](README.RU.MD)
 
@@ -27,13 +27,13 @@ The backend is written in Go (Fiber + SQLite), the frontend is Vue 3 + TypeScrip
 
 ## Stack
 
-| Component        | Technology                                                |
-|-------------------|------------------------------------------------------------|
-| Backend           | Go 1.25, Fiber v3, `urfave/cli`, SQLite (modernc, no CGO)  |
-| DB migrations     | goose (embedded in the binary via `embed`, applied automatically on startup) |
-| Realtime          | Centrifuge (WebSocket, also used to stream logs to the browser console) |
-| Frontend          | Vue 3, TypeScript, Vite, Pinia, Bootstrap                   |
-| System tray       | `fyne.io/systray`                                           |
+| Component     | Technology                                                                   |
+|---------------|------------------------------------------------------------------------------|
+| Backend       | Go 1.25, Fiber v3, `urfave/cli`, SQLite (modernc, no CGO)                    |
+| DB migrations | goose (embedded in the binary via `embed`, applied automatically on startup) |
+| Realtime      | WebSocket, also used to stream logs to the browser console                   |
+| Frontend      | Vue 3, TypeScript, Vite, Pinia, Bootstrap                                    |
+| System tray   | `fyne.io/systray`                                                            |
 
 ## Project structure
 
@@ -107,29 +107,28 @@ This first builds the frontend (`npm run build` → `frontend/dist`), then compi
 
 ## Configuration (`config.yml`)
 
-| Section          | Field       | Description                                                              |
-|-------------------|------------|----------------------------------------------------------------------------|
-| `app.env`          | `production` \| `development` | Frontend source: Vite dev server or the built `dist` folder |
-| `http.port`        | number      | HTTP server port (default `3000`)                                          |
-| `database.path`    | path        | Path to the SQLite file (relative to the binary)                           |
-| `log.level`        | `debug`\|`info`\|`warn`\|`error` | Log level forwarded to the browser console        |
-| `realtime.port`    | number      | WebSocket port for realtime features (default `3001`)                      |
-| `osu.path`         | path        | Path to your osu! installation directory                                   |
+| Section         | Field                            | Description                                                 |
+|-----------------|----------------------------------|-------------------------------------------------------------|
+| `app.env`       | `production` \| `development`    | Frontend source: Vite dev server or the built `dist` folder |
+| `http.port`     | number                           | HTTP server port (default `3000`)                           |
+| `database.path` | path                             | Path to the SQLite file (relative to the binary)            |
+| `log.level`     | `debug`\|`info`\|`warn`\|`error` | Log level forwarded to the browser console                  |
+| `osu.path`      | path                             | Path to your osu! installation directory                    |
 
 The config file path can be overridden with the `--config`/`-c` flag or the `APP_CONFIG` environment variable.
 
 ## Makefile commands
 
-| Command               | What it does                                                            |
-|-------------------------|------------------------------------------------------------------------|
-| `make init`            | Downloads Go module dependencies                                          |
-| `make deps`            | Runs `npm install` for the frontend                                       |
-| `make run`             | Runs the Go backend in dev mode (`go run ./cmd/ http --config config.yml`)|
-| `make frontend-dev`    | Runs the Vite dev server with hot reload                                   |
-| `make build`           | Builds a debug binary without the frontend                                |
-| `make build-prod`      | Builds the frontend, then the production binary                           |
-| `make frontend-build`  | Builds only the frontend (`npm run build`)                                |
-| `make clean`           | Removes `bin/` and `frontend/dist/`                                       |
+| Command               | What it does                                                               |
+|-----------------------|----------------------------------------------------------------------------|
+| `make init`           | Downloads Go module dependencies                                           |
+| `make deps`           | Runs `npm install` for the frontend                                        |
+| `make run`            | Runs the Go backend in dev mode (`go run ./cmd/ http --config config.yml`) |
+| `make frontend-dev`   | Runs the Vite dev server with hot reload                                   |
+| `make build`          | Builds a debug binary without the frontend                                 |
+| `make build-prod`     | Builds the frontend, then the production binary                            |
+| `make frontend-build` | Builds only the frontend (`npm run build`)                                 |
+| `make clean`          | Removes `bin/` and `frontend/dist/`                                        |
 
 ## Skills — beatmap difficulty analysis
 
