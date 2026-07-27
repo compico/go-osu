@@ -30,21 +30,21 @@ const mainProgress = computed(() => {
 // иначе лейбл дёргается между "Расчёт сложности" и "Запись в базу"
 // каждые ~500мс, что выглядит как глюк, а не прогресс.
 const stageLabel = computed(() => {
-  if (finished.value) return 'Готово'
+  if (finished.value) return 'Done'
 
   const calc = byKey['calc_progress']
-  if (calc && calc.done < calc.total) return 'Расчёт сложности'
+  if (calc && calc.done < calc.total) return 'Calculating difficulty'
 
   const ev = latest.value
-  if (!ev) return 'Подключение…'
+  if (!ev) return 'Connecting…'
 
   switch (ev.stage) {
     case 'read_db':
-      return 'Чтение osu!.db'
+      return 'Reading osu!.db'
     case 'diff':
-      return 'Сравнение с базой'
+      return 'Comparing with database'
     case 'write':
-      return 'Запись в базу'
+      return 'Writing to database'
     default:
       return ev.stage
   }
@@ -63,10 +63,10 @@ const recentErrors = computed(() => errorEvents.value.slice(-5).reverse())
       <div class="card shadow-lg" style="max-width: 480px; width: 100%">
         <div class="card-body text-center p-4">
           <div class="spinner-border text-primary mb-3" role="status">
-            <span class="visually-hidden">Синхронизация…</span>
+            <span class="visually-hidden">Syncing…</span>
           </div>
 
-          <h5 class="card-title mb-1">Синхронизация библиотеки</h5>
+          <h5 class="card-title mb-1">Syncing library</h5>
           <p class="text-body-secondary mb-3">{{ stageLabel }}</p>
 
           <div v-if="mainProgress" class="mb-1">
@@ -81,20 +81,20 @@ const recentErrors = computed(() => errorEvents.value.slice(-5).reverse())
                 {{ mainProgress.percent }}%
               </div>
             </div>
-            <div class="form-text mt-1 mb-0">{{ mainProgress.done }} / {{ mainProgress.total }} карт</div>
+            <div class="form-text mt-1 mb-0">{{ mainProgress.done }} / {{ mainProgress.total }} beatmaps</div>
           </div>
-          <div v-else class="progress mb-1" role="progressbar" aria-label="Синхронизация">
+          <div v-else class="progress mb-1" role="progressbar" aria-label="Syncing">
             <div class="progress-bar progress-bar-striped progress-bar-animated w-100"></div>
           </div>
 
           <div v-if="!connected" class="alert alert-warning small mt-3 mb-0 py-2">
-            Соединение с сервером потеряно — ждём переподключения…
+            Connection to server lost — reconnecting…
           </div>
 
           <div v-if="recentErrors.length" class="mt-3 text-start">
             <details>
               <summary class="small text-danger" role="button">
-                Ошибок при синхронизации: {{ errorEvents.length }}
+                Sync errors: {{ errorEvents.length }}
               </summary>
               <ul class="list-unstyled small text-body-secondary mt-2 mb-0">
                 <li v-for="(ev, i) in recentErrors" :key="i" class="text-truncate">{{ ev.error }}</li>

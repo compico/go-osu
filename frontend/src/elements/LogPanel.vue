@@ -30,7 +30,7 @@ const unreadCount = computed(() => (open.value ? 0 : logs.value.length))
       type="button"
       class="btn btn-dark rounded-circle log-toggle position-fixed shadow d-flex align-items-center justify-content-center"
       @click="open = !open"
-      :title="open ? 'Скрыть журнал' : 'Показать журнал'"
+      :title="open ? 'Hide log' : 'Show log'"
   >
     <!-- простая иконка терминала, без bootstrap-icons -->
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -49,19 +49,19 @@ const unreadCount = computed(() => (open.value ? 0 : logs.value.length))
     <div v-if="open" class="log-panel position-fixed shadow-lg d-flex flex-column">
       <div class="d-flex align-items-center justify-content-between px-3 py-2 border-bottom">
         <div class="d-flex align-items-center gap-2">
-          <strong class="small">Журнал</strong>
+          <strong class="small">Log</strong>
           <span class="badge rounded-pill" :class="connected ? 'text-bg-success' : 'text-bg-secondary'">
-            {{ connected ? 'онлайн' : 'нет связи' }}
+            {{ connected ? 'online' : 'offline' }}
           </span>
         </div>
         <div class="d-flex align-items-center gap-2">
-          <button type="button" class="btn btn-sm btn-outline-secondary" @click="clear">Очистить</button>
-          <button type="button" class="btn-close" @click="open = false" aria-label="Закрыть"></button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" @click="clear">Clear</button>
+          <button type="button" class="btn-close" @click="open = false" aria-label="Close"></button>
         </div>
       </div>
 
       <div class="flex-grow-1 overflow-auto px-3 py-2 font-monospace log-body">
-        <p v-if="!logs.length" class="text-body-secondary small mb-0">Пока пусто</p>
+        <p v-if="!logs.length" class="text-body-secondary small mb-0">Nothing yet</p>
         <div v-for="(entry, i) in logs" :key="i" class="log-entry small mb-1">
           <span class="text-body-secondary">{{ formatTime(entry.time) }}</span>
           <span class="badge ms-2" :class="badgeClass(entry.level)">{{ entry.level }}</span>
