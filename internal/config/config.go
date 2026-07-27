@@ -16,7 +16,6 @@ type Config struct {
 	HTTP     HTTPConfig     `yaml:"http"`
 	Database DatabaseConfig `yaml:"database"`
 	Log      LogConfig      `yaml:"log"`
-	Realtime RealtimeConfig `yaml:"realtime"`
 	Osu      Osu            `yaml:"osu"`
 }
 
@@ -49,9 +48,6 @@ func defaultConfig() Config {
 		},
 		Log: LogConfig{
 			Level: "info",
-		},
-		Realtime: RealtimeConfig{
-			Port: 3001,
 		},
 		Osu: Osu{
 			Path: "",

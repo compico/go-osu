@@ -16,10 +16,5 @@ log:
   # Minimum log level forwarded to the browser console: debug | info | warn | error
   level: "info"
 
-realtime:
-  # WebSocket port for real-time features (browser console logs, live updates).
-  # Change if port 3001 is already taken on your machine.
-  port: 3001
-
 osu:
   path: ""

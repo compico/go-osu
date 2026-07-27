@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"math"
 	"runtime"
-	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -77,6 +76,54 @@ func defaultConcurrency() int {
 const watchdogInterval = 2 * time.Second
 const watchdogWarnAfter = 5 * time.Second
 
+// progressEmitInterval rate-limits how often any single progress signal
+// (see emitThrottled) is actually sent to the frontend. This exists
+// because the naive "one event per completed unit of work" approach is a
+// real flood at scale: 16k beatmaps × 36 mod combinations is 576k
+// individual skill-calc results, and even just one event per *beatmap*
+// (16k) fires far faster than a browser tab can usefully render — each
+// message triggers Vue reactivity (array push, computed re-evaluation),
+// and at that rate the tab stops being able to keep up, to the point of
+// not responding to input at all. A human watching a progress bar cannot
+// perceive updates faster than a few times a second anyway, so there's no
+// value lost by coalescing to this cadence.
+const progressEmitInterval = 500 * time.Millisecond
+
+// ProgressStage identifies which phase of the sync a ProgressEvent
+// describes. Deliberately coarse — see the package-level comment on
+// ProgressEvent for why per-beatmap/per-mod-combination detail was cut.
+type ProgressStage string
+
+const (
+	StageReadDB       ProgressStage = "read_db"       // osu!.db parsed into raw rows
+	StageDiff         ProgressStage = "diff"          // MD5 diff against stored beatmaps done
+	StageCalcProgress ProgressStage = "calc_progress" // N/total beatmaps fully calculated (skill math for all mod combinations)
+	StageWrite        ProgressStage = "write"         // a db upsert batch was flushed
+	StageDone         ProgressStage = "done"          // Run() finished
+)
+
+// ProgressEvent is a single unit of live sync progress, meant to be
+// forwarded to a frontend (e.g. published over the realtime websocket hub).
+//
+// This intentionally carries only beatmap-level counts, not per-file or
+// per-mod-combination detail (there's no BeatmapID/Mods field) — at 16k
+// beatmaps × 36 mod combinations, anything finer-grained is 576k+ events
+// for a single sync run, which floods the frontend far faster than a
+// progress bar can usefully render and was observed to make the browser
+// tab unresponsive. "N of 16000 beatmaps done" is all a human watching a
+// progress bar actually needs. Emission is also rate-limited — see
+// emitThrottled — so even StageCalcProgress/StageWrite fire at most a
+// couple of times a second, not once per completed unit of work.
+type ProgressEvent struct {
+	Stage   ProgressStage `json:"stage"`
+	Table   string        `json:"table,omitempty"` // set on StageWrite: "beatmapsets" | "beatmaps" | "skill_cache"
+	Done    int64         `json:"done"`
+	Total   int64         `json:"total"`
+	Message string        `json:"message,omitempty"`
+	Err     string        `json:"error,omitempty"`
+	At      time.Time     `json:"at"`
+}
+
 type Syncer struct {
 	osu    *Osu
 	repos  *repository.Repos
@@ -87,6 +134,11 @@ type Syncer struct {
 
 	concurrency      int
 	skillCalcTimeout time.Duration
+
+	progress chan<- ProgressEvent
+
+	progressMu       sync.Mutex
+	lastProgressEmit map[string]time.Time
 }
 
 type SyncerOption func(*Syncer)
@@ -107,6 +159,63 @@ func WithSkillCalcTimeout(d time.Duration) SyncerOption {
 	}
 }
 
+// WithProgress attaches a channel that Syncer publishes ProgressEvent
+// values to as it works. Sends are non-blocking — if the channel is full,
+// the event is dropped rather than stalling the sync. Give the channel a
+// reasonable buffer (e.g. 1024) and a goroutine that drains it promptly.
+func WithProgress(ch chan<- ProgressEvent) SyncerOption {
+	return func(s *Syncer) {
+		s.progress = ch
+	}
+}
+
+// emit publishes ev on the configured progress channel, if any, with no
+// rate limiting. Only use this for genuinely one-shot events (read_db,
+// diff, done) — anything that can fire more than a handful of times over a
+// sync run should go through emitThrottled instead.
+func (s *Syncer) emit(ev ProgressEvent) {
+	if s.progress == nil {
+		return
+	}
+	ev.At = time.Now()
+	select {
+	case s.progress <- ev:
+	default:
+	}
+}
+
+// emitThrottled is like emit but rate-limits how often events sharing the
+// same key are actually sent (see progressEmitInterval) — e.g. all
+// StageCalcProgress updates share one key, all skill_cache StageWrite
+// updates share another, so a hot loop that "completes" thousands of times
+// a minute still only produces a couple of messages a second.
+//
+// Two situations always bypass the limit, regardless of when the key was
+// last emitted: the terminal update for a key (Done >= Total), so a
+// progress bar can actually reach 100% instead of getting stuck a fraction
+// short of it; and any event carrying a non-empty Err, so a failure is
+// never silently swallowed by rate limiting.
+func (s *Syncer) emitThrottled(key string, ev ProgressEvent) {
+	if s.progress == nil {
+		return
+	}
+
+	force := ev.Err != "" || (ev.Total > 0 && ev.Done >= ev.Total)
+
+	s.progressMu.Lock()
+	last, seen := s.lastProgressEmit[key]
+	now := time.Now()
+	should := force || !seen || now.Sub(last) >= progressEmitInterval
+	if should {
+		s.lastProgressEmit[key] = now
+	}
+	s.progressMu.Unlock()
+
+	if should {
+		s.emit(ev)
+	}
+}
+
 // NewSyncer requires an explicit logger rather than reaching into Osu's
 // internal one — if you don't see sync logs, check what's passed here
 // first (nil logger, or one configured below Info level, are the usual
@@ -124,6 +233,7 @@ func NewSyncer(osuSvc *Osu, repos *repository.Repos, logger *slog.Logger, opts .
 		vars:             skills.DefaultVars(),
 		concurrency:      defaultConcurrency(),
 		skillCalcTimeout: defaultSkillCalcTimeout,
+		lastProgressEmit: make(map[string]time.Time),
 	}
 
 	for _, opt := range opts {
@@ -150,6 +260,7 @@ func (s *Syncer) Run(ctx context.Context) error {
 	}
 	raw := s.osu.GetBeatmaps()
 	s.logger.Info("read osu!.db", "beatmaps", len(raw), "took", time.Since(step))
+	s.emit(ProgressEvent{Stage: StageReadDB, Done: int64(len(raw)), Total: int64(len(raw)), Message: "read osu!.db"})
 
 	step = time.Now()
 	oldBeatmaps, err := s.repos.Beatmaps.List(ctx)
@@ -179,6 +290,12 @@ func (s *Syncer) Run(ctx context.Context) error {
 		"changed", len(changed),
 		"unchanged", len(beatmaps)-len(changed),
 	)
+	s.emit(ProgressEvent{
+		Stage:   StageDiff,
+		Done:    int64(len(changed)),
+		Total:   int64(len(beatmaps)),
+		Message: fmt.Sprintf("%d changed of %d", len(changed), len(beatmaps)),
+	})
 
 	step = time.Now()
 	if err := s.upsertBeatmapSetsBatched(ctx, sets); err != nil {
@@ -216,6 +333,7 @@ func (s *Syncer) Run(ctx context.Context) error {
 	s.logger.Info("pruned missing beatmaps", "took", time.Since(step))
 
 	s.logger.Info("sync finished", "took", time.Since(runStart))
+	s.emit(ProgressEvent{Stage: StageDone, Done: int64(len(beatmaps)), Total: int64(len(beatmaps)), Message: "sync finished"})
 
 	s.logger.Info("goroutine count after sync", "count", runtime.NumGoroutine())
 
@@ -233,6 +351,7 @@ func (s *Syncer) upsertBeatmapSetsBatched(ctx context.Context, sets []model.Beat
 			return err
 		}
 		s.logger.Info("beatmapset writing", "progress", fmt.Sprintf("%d/%d", end, total))
+		s.emitThrottled("write:beatmapsets", ProgressEvent{Stage: StageWrite, Table: "beatmapsets", Done: int64(end), Total: int64(total)})
 	}
 	return nil
 }
@@ -248,6 +367,7 @@ func (s *Syncer) upsertBeatmapsBatched(ctx context.Context, beatmaps []model.Bea
 			return err
 		}
 		s.logger.Info("beatmap writing", "progress", fmt.Sprintf("%d/%d", end, total))
+		s.emitThrottled("write:beatmaps", ProgressEvent{Stage: StageWrite, Table: "beatmaps", Done: int64(end), Total: int64(total)})
 	}
 	return nil
 }
@@ -324,7 +444,7 @@ func (s *Syncer) mapRawBeatmaps(raw []osu.DatabaseBeatmap) ([]model.BeatmapSet, 
 			SliderVelocity:    bm.SliderVelocity,
 			StackLeniency:     bm.StackLeniency,
 
-			BPM:        dominantBPM(bm.TimingPoints, bm.TotalTime),
+			BPM:        dominantBPM(bm.TimingPoints),
 			StarsNoMod: stars,
 
 			DrainTime:            bm.DrainTime,
@@ -362,43 +482,28 @@ func (s *Syncer) mapRawBeatmaps(raw []osu.DatabaseBeatmap) ([]model.BeatmapSet, 
 	return sets, beatmaps
 }
 
-func dominantBPM(points []osu.DatabaseTimingPoint, totalTimeMs int32) float64 {
+func dominantBPM(points []osu.DatabaseTimingPoint) float64 {
 	if len(points) == 0 {
 		return 0
 	}
 
-	sorted := make([]osu.DatabaseTimingPoint, len(points))
-	copy(sorted, points)
-	sort.Slice(sorted, func(i, j int) bool { return sorted[i].TimeOffset < sorted[j].TimeOffset })
+	var sum float64
+	var count int
 
-	durationByBPM := make(map[float64]float64)
-	currentBPM := 0.0
-
-	for i, p := range sorted {
-		if !p.Inherited && p.BeatLength > 0 {
-			currentBPM = 60000.0 / p.BeatLength
-		}
-		if currentBPM <= 0 {
+	for _, p := range points {
+		if p.Inherited || p.BeatLength <= 0 {
 			continue
 		}
 
-		end := float64(totalTimeMs)
-		if i+1 < len(sorted) {
-			end = sorted[i+1].TimeOffset
-		}
-		if duration := end - p.TimeOffset; duration > 0 {
-			durationByBPM[currentBPM] += duration
-		}
+		sum += 60000.0 / p.BeatLength
+		count++
 	}
 
-	var best, bestDuration float64
-	for bpm, dur := range durationByBPM {
-		if dur > bestDuration {
-			bestDuration, best = dur, bpm
-		}
+	if count == 0 {
+		return 0
 	}
 
-	return math.Round(best)
+	return math.Round(sum / float64(count))
 }
 
 // computeChanged runs skill calc for every changed beatmap with bounded,
@@ -432,7 +537,12 @@ func (s *Syncer) computeChanged(ctx context.Context, changed []osu.DatabaseBeatm
 	rows := make(chan model.SkillCache, 4096)
 	writerStop := make(chan struct{})
 	writerDone := make(chan struct{})
-	go s.skillCacheWriter(ctx, rows, writerStop, writerDone)
+	// Expected row count is best-effort (a beatmap that fails to parse or
+	// times out early produces fewer rows) — it's only used to give the
+	// frontend a Total to render a progress bar against, so it doesn't need
+	// to be exact.
+	expectedRows := int64(total) * int64(len(s.modCombinations))
+	go s.skillCacheWriter(ctx, rows, writerStop, writerDone, expectedRows)
 
 	inFlight := newInFlightTracker()
 	watchdogStop := make(chan struct{})
@@ -465,7 +575,9 @@ loop:
 				skipped.Add(1)
 			}
 
-			s.logSkillProgress(done.Add(1), int64(total))
+			n := done.Add(1)
+			s.logSkillProgress(n, int64(total))
+			s.emitThrottled("calc_progress", ProgressEvent{Stage: StageCalcProgress, Done: n, Total: int64(total)})
 		}(dbBm)
 	}
 
@@ -484,6 +596,12 @@ loop:
 // hung) actually stops doing further work once its budget runs out,
 // rather than continuing to burn CPU in the background after being
 // reported as timed out. Returns true if it timed out.
+//
+// This does not emit any per-beatmap or per-mod-combination ProgressEvent —
+// see the comment on ProgressEvent for why. Parse/hash failures are still
+// logged via s.logger (which the frontend's log panel already shows live),
+// so nothing is silently lost; it's just not duplicated onto the progress
+// channel too.
 func (s *Syncer) computeOneBeatmap(parent context.Context, dbBm osu.DatabaseBeatmap, rows chan<- model.SkillCache) bool {
 	if dbBm.BeatmapID <= 0 {
 		s.logger.Warn("skipping skill calc for unsubmitted/local beatmap (invalid beatmap_id)",
@@ -533,7 +651,6 @@ func (s *Syncer) computeOneBeatmap(parent context.Context, dbBm osu.DatabaseBeat
 
 			select {
 			case rows <- model.SkillCache{
-				// импорта/синка с сервером.
 				BeatmapID: dbBm.BeatmapID,
 				Mods:      int32(mods),
 				MD5Hash:   md5Hash,
@@ -569,8 +686,10 @@ func (s *Syncer) computeOneBeatmap(parent context.Context, dbBm osu.DatabaseBeat
 // skillCacheWriter is the single writer for skill_cache rows, batching
 // writes at writeChunkSize. It keeps draining rows after writerStop fires
 // until the channel is empty (non-blocking drain), then does a final
-// flush.
-func (s *Syncer) skillCacheWriter(ctx context.Context, rows <-chan model.SkillCache, stop <-chan struct{}, done chan<- struct{}) {
+// flush. totalExpected is a best-effort row count (beatmaps * mod
+// combinations) used only to populate ProgressEvent.Total for a frontend
+// progress bar — it's fine if the real count comes in lower.
+func (s *Syncer) skillCacheWriter(ctx context.Context, rows <-chan model.SkillCache, stop <-chan struct{}, done chan<- struct{}, totalExpected int64) {
 	defer close(done)
 
 	buf := make([]model.SkillCache, 0, writeChunkSize)
@@ -582,9 +701,11 @@ func (s *Syncer) skillCacheWriter(ctx context.Context, rows <-chan model.SkillCa
 		}
 		if err := s.repos.Skills.UpsertBatch(ctx, buf); err != nil {
 			s.logger.Error("failed to write skill_cache batch", "error", err, "rows", len(buf))
+			s.emitThrottled("write:skill_cache", ProgressEvent{Stage: StageWrite, Table: "skill_cache", Done: int64(written), Total: totalExpected, Err: err.Error()})
 		} else {
 			written += len(buf)
 			s.logger.Info("skill_cache writing", "written", written)
+			s.emitThrottled("write:skill_cache", ProgressEvent{Stage: StageWrite, Table: "skill_cache", Done: int64(written), Total: totalExpected})
 		}
 		buf = buf[:0]
 	}

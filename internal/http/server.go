@@ -10,6 +10,7 @@ import (
 	"github.com/compico/go-osu/internal/config"
 	"github.com/compico/go-osu/internal/http/handler/osuapi"
 	"github.com/compico/go-osu/internal/http/view"
+	"github.com/compico/go-osu/internal/realtime"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/static"
 )
@@ -74,6 +75,7 @@ type appConfigResponse struct {
 }
 
 func (s *Server) RegisterRoutes(
+	rt *realtime.Node,
 	v *view.View,
 	osuSongHandler *osuapi.OsuSongHandler,
 	osuTrackStreamHandler *osuapi.OsuTrackStreamHandler,
@@ -85,8 +87,7 @@ func (s *Server) RegisterRoutes(
 
 	s.apiRouter.Get("/app/config", func(c fiber.Ctx) error {
 		return c.JSON(appConfigResponse{
-			Env:          s.cfg.App.Env,
-			RealtimePort: s.cfg.Realtime.Port,
+			Env: s.cfg.App.Env,
 		})
 	})
 
@@ -96,7 +97,7 @@ func (s *Server) RegisterRoutes(
 	s.apiRouter.Get("/osu/songs/search", osuSongsSearchHandler.Handle)
 
 	s.apiRouter.Get("/osu/bg/:beatmap_id<int>.jpg", osuGetBackgroundHandler.Handle)
-
+	s.app.Get("/ws", rt.Handler())
 	if !v.IsDev() {
 		s.app.Use("/assets", static.New("dist/assets", static.Config{
 			FS: frontend.Dist,

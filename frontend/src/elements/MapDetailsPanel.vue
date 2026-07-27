@@ -12,6 +12,7 @@
         <p class="details-diff-name">
           <i class="bi bi-star-fill"></i> {{ diff.difficulty }}
         </p>
+<!--        <a :href="`https://osu.ppy.sh/beatmaps/${diff.beatmap_id}`" >Link</a>-->
       </div>
 
       <button class="play-btn" @click="$emit('play')">

@@ -3,6 +3,8 @@ import { computed, watch } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import Navbar from './elements/Navbar.vue'
 import GlobalPlayer from './elements/GlobalPlayer.vue'
+import SyncOverlay from './elements/SyncOverlay.vue'
+import LogPanel from './elements/LogPanel.vue'
 import { useThemeStore } from './stores/theme'
 
 const themeStore = useThemeStore()
@@ -24,6 +26,8 @@ const showPlayerBar = computed(() => !route.meta?.hidePlayer)
     <RouterView />
   </main>
   <GlobalPlayer v-show="showPlayerBar" />
+   <SyncOverlay />
+   <LogPanel />
 </template>
 
 <style scoped>

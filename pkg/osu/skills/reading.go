@@ -250,7 +250,7 @@ func retrievePastVisibleObjects(points []ReadingPoint, current *ReadingPoint) []
 	for i := current.Index; i > 0; i-- {
 		prevPoint := &points[i-1]
 
-		if float64(current.Time-prevPoint.Time) > readingWindowSize ||
+		if current.Time-prevPoint.Time > 3000 ||
 			prevPoint.Time < current.Preempt { // Current object not visible at the time object needs to be clicked.
 			break
 		}

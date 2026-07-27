@@ -1,5 +1,9 @@
 # Go-osu
 
+[sync](img/1.png)
+[dark theme](img/2.png)
+[light theme](img/3.png)
+
 [Русская версия](README.RU.MD)
 
 > **⚠️ First Launch**

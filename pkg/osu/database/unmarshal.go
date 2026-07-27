@@ -181,7 +181,7 @@ func (d *decoder) decodeTimingPoint() osu.DatabaseTimingPoint {
 	return osu.DatabaseTimingPoint{
 		BeatLength: d.decodeDouble(),
 		TimeOffset: d.decodeDouble(),
-		Inherited:  d.decodeBoolean() == true,
+		Inherited:  d.decodeBoolean() == false,
 	}
 }
 

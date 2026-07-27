@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log"
 	"net"
-	"time"
 
 	"github.com/compico/go-osu/cmd/commands"
 	appcfg "github.com/compico/go-osu/internal/config"
@@ -66,25 +65,12 @@ func run(ctx context.Context, c *cli.Command) error {
 		return err
 	}
 
-	syncService := service.NewSyncer(osuService, repos, slogger)
-
-	if err = syncService.Run(ctx); err != nil {
-		return err
-	}
-
 	viteView, err := view.New(cfg.App.IsDev())
 	if err != nil {
 		return err
 	}
 
-	rt, err := realtime.New(&cfg.Realtime, slogger)
-	if err != nil {
-		return err
-	}
-	if err := rt.Start(); err != nil {
-		return err
-	}
-
+	rt := realtime.New(slogger)
 	osuSongHandler := osuapi.NewOsuSongHandler(osuService)
 	osuTrackStreamHandler := osuapi.NewOsuTrackStreamHandler(osuService)
 	osuGetBackgroundHandler := osuapi.NewOsuGetBackgroundHandler(osuService)
@@ -92,7 +78,7 @@ func run(ctx context.Context, c *cli.Command) error {
 	osuSongsSearchHandler := osuapi.NewOsuSongsSearchHandler(repos)
 
 	http := httpserver.New(cfg, slogger)
-	http.RegisterRoutes(viteView, osuSongHandler, osuTrackStreamHandler, osuGetBackgroundHandler, osuQueueAdjacentHandler, osuSongsSearchHandler)
+	http.RegisterRoutes(rt, viteView, osuSongHandler, osuTrackStreamHandler, osuGetBackgroundHandler, osuQueueAdjacentHandler, osuSongsSearchHandler)
 
 	g, gCtx := errgroup.WithContext(ctx)
 
@@ -105,17 +91,22 @@ func run(ctx context.Context, c *cli.Command) error {
 
 	go rt.DrainLogs(gCtx, browserHandler.Chan())
 
+	progress := make(chan service.ProgressEvent, 1024)
+	syncService := service.NewSyncer(osuService, repos, slogger, service.WithProgress(progress))
+
+	go realtime.Drain(rt, gCtx, realtime.ProgressChannel, progress)
+	go func() {
+		if err := syncService.Run(gCtx); err != nil {
+			slogger.Error("library sync failed", "error", err)
+		}
+	}()
+
 	trayIcon := tray.New(cfg.HTTP.Port, slogger)
 
 	onQuit := func() {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
 		slogger.Info("shutting down...")
 
-		if err := rt.Stop(shutdownCtx); err != nil {
-			log.Printf("realtime shutdown: %v", err)
-		}
+		rt.Close()
 		if err := http.Stop(); err != nil {
 			log.Printf("http shutdown: %v", err)
 		}
