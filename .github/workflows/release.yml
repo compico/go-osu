@@ -78,8 +78,11 @@ jobs:
 
       - name: Create archives
         run: |
+          echo "--- release/linux ---"; ls -la release/linux
+          echo "--- release/windows ---"; ls -la release/windows
+
           tar -czf goosu-linux-amd64.tar.gz -C release/linux .
-          cd release/windows && zip ../../goosu-windows-amd64.zip . && cd ../..
+          (cd release/windows && zip ../../goosu-windows-amd64.zip .)
 
           sha256sum goosu-linux-amd64.tar.gz > goosu-linux-amd64.tar.gz.sha256
           sha256sum goosu-windows-amd64.zip > goosu-windows-amd64.zip.sha256
