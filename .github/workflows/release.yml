@@ -59,8 +59,8 @@ jobs:
             -ldflags "\
               -X main.Version=${GITHUB_REF_NAME} \
               -X main.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)\
-            " \
-            -o goosu.exe \
+             " \
+            -o release/windows/goosu.exe \
             ./cmd/
 
 
@@ -84,12 +84,16 @@ jobs:
       - name: Create archives
         run: |
           tar -czf goosu-linux-amd64.tar.gz -C release/linux .
-          cd release/windows && zip ../../goosu-windows-amd64.zip .
+          cd release/windows && zip ../../goosu-windows-amd64.zip . && cd ../..
 
+          sha256sum goosu-linux-amd64.tar.gz > goosu-linux-amd64.tar.gz.sha256
+          sha256sum goosu-windows-amd64.zip > goosu-windows-amd64.zip.sha256
 
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             goosu-linux-amd64.tar.gz
+            goosu-linux-amd64.tar.gz.sha256
             goosu-windows-amd64.zip
+            goosu-windows-amd64.zip.sha256
