@@ -7,6 +7,10 @@ import (
 // CalculateStamina портирует stamina.cpp's CalculateStamina.
 // Требует calculatePressIntervals (заполняется в calculateTapStrains).
 func CalculateStamina(md *MapData, vars *Vars) {
+	md.calculateStamina(vars)
+}
+
+func (md *MapData) calculateStamina(vars *Vars) {
 	md.Skills.Stamina = vars.Get("Stamina", "TotalMult") *
 		math.Pow(MaxFloatSliceValue(md.TapStrains), vars.Get("Stamina", "TotalPow"))
 }

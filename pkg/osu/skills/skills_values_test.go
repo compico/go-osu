@@ -160,6 +160,9 @@ func TestSkillsValues_CompareWithReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if len(files) == 0 {
+		t.Skip("no .osu files found in ./test_data; reference comparison not run")
+	}
 
 	vars := DefaultVars()
 

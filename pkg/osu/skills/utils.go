@@ -4,7 +4,6 @@ import (
 	"math"
 	"sort"
 
-	"github.com/chewxy/math32"
 	"github.com/compico/go-osu/pkg/vector2d"
 )
 
@@ -137,24 +136,24 @@ func sign(x float64) int {
 
 // erfInv вычисляет обратную функцию ошибки.
 // Область определения: x ∈ (-1, 1).
-func erfInv(x float32) float32 {
+func erfInv(x float64) float64 {
 	// Особые случаи.
 	if x <= -1 {
 		if x == -1 {
-			return float32(math.Inf(-1))
+			return math.Inf(-1)
 		}
-		return float32(math.NaN())
+		return math.NaN()
 	}
 	if x >= 1 {
 		if x == 1 {
-			return float32(math.Inf(1))
+			return math.Inf(1)
 		}
-		return float32(math.NaN())
+		return math.NaN()
 	}
 
-	w := -math32.Log((1 - x) * (1 + x))
+	w := -math.Log((1 - x) * (1 + x))
 
-	var p float32
+	var p float64
 
 	if w < 5 {
 		w -= 2.5
@@ -169,7 +168,7 @@ func erfInv(x float32) float32 {
 		p = 2.46640727e-01 + p*w
 		p = 1.50140941 + p*w
 	} else {
-		w = math32.Sqrt(w) - 3
+		w = math.Sqrt(w) - 3
 
 		p = -2.00214257e-04
 		p = 1.00950558e-04 + p*w

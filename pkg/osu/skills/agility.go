@@ -6,6 +6,10 @@ import (
 
 // CalculateAgility агрегирует AimStrains в финальный скилл Agility.
 func CalculateAgility(md *MapData, vars *Vars) {
+	md.calculateAgility(vars)
+}
+
+func (md *MapData) calculateAgility(vars *Vars) {
 	maxStrain := 0.0
 	maxIndex := 0
 

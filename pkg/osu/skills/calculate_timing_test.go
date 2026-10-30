@@ -94,50 +94,50 @@ func TestProcessBeatmap_StepTiming_AllMods(t *testing.T) {
 
 				if stepOK {
 					stepOK = stepOK && runStepAllMods(t, "prepareTimingPoints", modsLabel, totals, counts, hangs, func() {
-						prepareTimingPoints(md)
+						md.prepareTimingPoints()
 					})
 				}
 				if stepOK {
 					stepOK = stepOK && runStepAllMods(t, "approximateSliderPoints", modsLabel, totals, counts, hangs, func() {
-						approximateSliderPoints(md)
+						md.approximateSliderPoints()
 					})
 				}
 				if stepOK {
 					stepOK = stepOK && runStepAllMods(t, "bakeSliderData", modsLabel, totals, counts, hangs, func() {
-						bakeSliderData(md)
+						md.bakeSliderData()
 					})
 				}
 				if stepOK {
 					stepOK = stepOK && runStepAllMods(t, "calculateMovementData", modsLabel, totals, counts, hangs, func() {
-						calculateMovementData(md)
+						md.calculateMovementData()
 					})
 				}
 				if stepOK {
 					stepOK = stepOK && runStepAllMods(t, "gatherTargetPoints", modsLabel, totals, counts, hangs, func() {
-						gatherTargetPoints(md)
+						md.gatherTargetPoints()
 					})
 				}
 				if stepOK {
 					stepOK = stepOK && runStepAllMods(t, "gatherAimAndReadingPoints", modsLabel, totals, counts, hangs, func() {
-						gatherAimAndReadingPoints(md)
+						md.gatherAimAndReadingPoints()
 					})
 				}
 
 				if stepOK {
 					stepOK = stepOK && runStepAllMods(t, "calculateAngles", modsLabel, totals, counts, hangs, func() {
-						calculateAngles(md)
+						md.calculateAngles()
 					})
 				}
 
 				if stepOK {
 					stepOK = stepOK && runStepAllMods(t, "calculatePressIntervals", modsLabel, totals, counts, hangs, func() {
-						calculatePressIntervals(md)
+						md.calculatePressIntervals()
 					})
 				}
 
 				if stepOK {
 					stepOK = stepOK && runStepAllMods(t, "gatherTapPatterns", modsLabel, totals, counts, hangs, func() {
-						gatherTapPatterns(md)
+						md.gatherTapPatterns()
 					})
 				}
 

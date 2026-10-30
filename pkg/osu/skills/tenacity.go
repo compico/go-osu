@@ -7,8 +7,12 @@ import (
 
 // CalculateTenacity портирует tenacity.cpp's CalculateTenacity.
 // Рассчитывает способность к быстрому тапу (streams и bursts).
-// Требует md.Streams (заполняется в prepareMapData).
+// Требует md.Streams, заполненный на этапе подготовки карты.
 func CalculateTenacity(md *MapData, vars *Vars) {
+	md.calculateTenacity(vars)
+}
+
+func (md *MapData) calculateTenacity(vars *Vars) {
 	longestStream := getLongestStream(md.Streams)
 
 	debugf("[TENACITY] longestStream: interval=%v length=%v\n", longestStream.Interval, longestStream.Length)
@@ -53,8 +57,9 @@ func CalculateTenacity(md *MapData, vars *Vars) {
 	debugf("[TENACITY] TotalMult=%v TotalPow=%v final=%v\n", totalMult, totalPow, md.Skills.Tenacity)
 }
 
-// getLongestStream находит самый длинный stream в map.
-// Портирует GetLongestStream из tenacity.cpp.
+// getLongestStream returns the first interval bucket, in ascending interval
+// order, that contains a stream longer than one note. It ports
+// GetLongestStream from tenacity.cpp.
 func getLongestStream(streams map[int][][]int) Stream {
 	mx := 1
 	interval := 0

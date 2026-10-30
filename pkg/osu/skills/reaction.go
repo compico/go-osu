@@ -94,6 +94,10 @@ func getReactionSkillAt(targetPoints []TargetPoint, targetPoint TargetPoint, hit
 // CalculateReaction ports reaction.cpp's CalculateReaction.
 // Requires md.TargetPoints (populated by gatherTargetPoints).
 func CalculateReaction(md *MapData, vars *Vars, hidden bool) {
+	md.calculateReaction(vars, hidden)
+}
+
+func (md *MapData) calculateReaction(vars *Vars, hidden bool) {
 	mx := 0.0
 	avg := 0.0
 	weight := vars.Get("Reaction", "AvgWeighting")

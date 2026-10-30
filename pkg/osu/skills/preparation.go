@@ -9,25 +9,25 @@ import (
 
 const OffsetMaxDisplacement = 2
 
-// prepareMapData заполняет все необходимые поля MapData для расчёта скиллов.
-// Должен вызываться ОДИН РАЗ перед любыми CalculateXxx().
-func prepareMapData(md *MapData) {
-	prepareTimingPoints(md)
-	approximateSliderPoints(md)
-	bakeSliderData(md)
+// prepare populates the derived data needed by the skill calculations.
+// Call it once before calculating any skills.
+func (md *MapData) prepare() {
+	md.prepareTimingPoints()
+	md.approximateSliderPoints()
+	md.bakeSliderData()
 
 	// PrepareAimData
-	calculateMovementData(md)
-	gatherTargetPoints(md)
-	gatherAimAndReadingPoints(md)
-	calculateAngles(md)
+	md.calculateMovementData()
+	md.gatherTargetPoints()
+	md.gatherAimAndReadingPoints()
+	md.calculateAngles()
 
 	// PrepareTapData
-	calculatePressIntervals(md)
-	gatherTapPatterns(md)
+	md.calculatePressIntervals()
+	md.gatherTapPatterns()
 }
 
-func calculatePressIntervals(md *MapData) {
+func (md *MapData) calculatePressIntervals() {
 	previousTime := -1
 	for _, ho := range md.Map.HitObjects {
 		if ho.Type.IsHitNormal() || ho.Type.IsHitSlider() {
@@ -40,7 +40,7 @@ func calculatePressIntervals(md *MapData) {
 	}
 }
 
-func gatherAimAndReadingPoints(md *MapData) {
+func (md *MapData) gatherAimAndReadingPoints() {
 	index := 0
 	prev := &md.Map.HitObjects[0]
 
@@ -199,7 +199,7 @@ func GetLastTickTime(ho osu.HitObject) int {
 	return int(float64(ho.EndTime) - float64(ho.EndTime-ho.Ticks[len(ho.Ticks)-1])/2.0)
 }
 
-func prepareTimingPoints(md *MapData) {
+func (md *MapData) prepareTimingPoints() {
 	src := md.Map.TimingPoints
 	md.TimingPoints = make([]TimingPoint, 0, len(src))
 
@@ -279,7 +279,7 @@ func (s *timingState) updateBPM(tp *TimingPoint) {
 }
 
 // bakeSliderData parses and pre-calculates appropriate geometric curve points for all sliders
-func bakeSliderData(md *MapData) {
+func (md *MapData) bakeSliderData() {
 	if md.Map == nil {
 		return
 	}
@@ -334,7 +334,7 @@ type MovementData struct {
 }
 
 // calculateMovementData computes speed, distance, vector velocity, and acceleration changes
-func calculateMovementData(md *MapData) {
+func (md *MapData) calculateMovementData() {
 	if md.Map == nil || len(md.Map.HitObjects) == 0 {
 		return
 	}
@@ -387,7 +387,7 @@ func calculateMovementData(md *MapData) {
 	}
 }
 
-func gatherTapPatterns(md *MapData) {
+func (md *MapData) gatherTapPatterns() {
 	old := 0
 	var tmp []int
 	i := 0
@@ -449,7 +449,7 @@ func gatherTapPatterns(md *MapData) {
 // almost never observable in practice (two hit objects within 5ms of each
 // other is rare), but it's preserved here for numeric parity with the
 // reference implementation rather than silently "fixed".
-func gatherTargetPoints(md *MapData) {
+func (md *MapData) gatherTargetPoints() {
 	i := 0
 	prevTime := math.MinInt32
 
@@ -528,7 +528,7 @@ func findTimingAt(timings []TargetPoint, time float64) int {
 	return 0
 }
 
-func calculateAngles(md *MapData) {
+func (md *MapData) calculateAngles() {
 	md.AngleBonuses = md.AngleBonuses[:0]
 
 	var oldAngle float64
