@@ -1,0 +1,12 @@
+#!/bin/sh
+
+set -eu
+
+fixture_dir="pkg/osu/skills/test_data"
+if ! find "$fixture_dir" -maxdepth 1 -type f -name '*.osu' -print -quit | grep -q .; then
+	echo "Skipping osuSkills reference check: no local .osu files in $fixture_dir" >&2
+	exit 0
+fi
+
+echo "Running osuSkills reference check..." >&2
+go.exe test ./pkg/osu/skills -run '^TestSkillsValues_CompareWithReference$' -count=1

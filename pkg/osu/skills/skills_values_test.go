@@ -167,6 +167,7 @@ func TestSkillsValues_CompareWithReference(t *testing.T) {
 	vars := DefaultVars()
 
 	const epsilon = 0.001
+	comparisons := 0
 
 	check := func(t *testing.T, name string, got, want float64) {
 		t.Helper()
@@ -200,6 +201,7 @@ func TestSkillsValues_CompareWithReference(t *testing.T) {
 			if ref.BeatmapID != bm.BeatmapID {
 				continue
 			}
+			comparisons++
 
 			t.Run(fmt.Sprintf("%d_mods_%v", ref.BeatmapID, ref.Mods.String()), func(t *testing.T) {
 				result := ProcessBeatmap(&bm, ref.Mods, vars)
@@ -237,5 +239,8 @@ func TestSkillsValues_CompareWithReference(t *testing.T) {
 					ref.Skills.Reaction)
 			})
 		}
+	}
+	if comparisons == 0 {
+		t.Fatal("no osuSkills reference entries matched the .osu fixtures")
 	}
 }
