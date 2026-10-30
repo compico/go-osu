@@ -131,7 +131,7 @@ func (s *Slider) Init(curvesList []*Bezier, hitObject *osu.HitObject) {
 // repeat checkpoints, ticks, and equidistant lerp points for all slider hit objects.
 //
 // Fits perfectly into your concurrency model by executing on the private *MapData instance context.
-func approximateSliderPoints(md *MapData) {
+func (md *MapData) approximateSliderPoints() {
 	var timingPointOffsets []float64
 	var beatLengths []float64
 	var base float64

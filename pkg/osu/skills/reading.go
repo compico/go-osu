@@ -18,11 +18,13 @@ const (
 )
 
 // CalculateReading ports reading.cpp's CalculateReading. It requires
-// md.ReadingPoints to already be populated (by the aim/reading point
-// preparation step — not yet ported; see the package doc comment on
-// MapData) and writes the resulting strain curve and skill value back
-// into md.
+// md.ReadingPoints to be populated by the map preparation stage and writes
+// the resulting strain curve and skill value back into md.
 func CalculateReading(md *MapData, vars *Vars, hidden bool) {
+	md.calculateReading(vars, hidden)
+}
+
+func (md *MapData) calculateReading(vars *Vars, hidden bool) {
 	n := len(md.ReadingPoints)
 	strain := 0.0
 

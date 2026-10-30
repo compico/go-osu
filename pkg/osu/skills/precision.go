@@ -8,6 +8,10 @@ import (
 // Рассчитывает точность на основе agility и размера круга.
 // Требует предварительного расчёта agility в md.Skills.Agility.
 func CalculatePrecision(md *MapData, vars *Vars) {
+	md.calculatePrecision(vars)
+}
+
+func (md *MapData) calculatePrecision(vars *Vars) {
 	cs := md.Map.CircleSize
 
 	debugf("[PRECISION] agilityAtCallTime=%v cs=%v\n", md.Skills.Agility, cs)

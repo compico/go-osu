@@ -4,7 +4,6 @@ go 1.25.7
 
 require (
 	fyne.io/systray v1.12.2
-	github.com/chewxy/math32 v1.11.2
 	github.com/gofiber/contrib/v3/websocket v1.2.2
 	github.com/gofiber/fiber/v3 v3.4.0
 	github.com/jmoiron/sqlx v1.4.0

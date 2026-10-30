@@ -50,15 +50,15 @@ func DefaultModCombinations() []osu.Mod {
 	return combinations
 }
 
-func calculateSkills(md *MapData, vars *Vars) {
-	CalculateReaction(md, vars, md.HasMod(osu.HD))
-	CalculateStamina(md, vars)
-	CalculateTenacity(md, vars)
-	CalculateAgility(md, vars)
-	CalculatePrecision(md, vars)
-	CalculateAccuracy(md, vars)
+func (md *MapData) calculateSkills(vars *Vars) {
+	md.calculateReaction(vars, md.HasMod(osu.HD))
+	md.calculateStamina(vars)
+	md.calculateTenacity(vars)
+	md.calculateAgility(vars)
+	md.calculatePrecision(vars)
+	md.calculateAccuracy(vars)
 	if md.HasMod(osu.FL) {
-		CalculateMemory(md, vars)
+		md.calculateMemory(vars)
 	}
-	CalculateReading(md, vars, md.HasMod(osu.HD))
+	md.calculateReading(vars, md.HasMod(osu.HD))
 }

@@ -9,8 +9,12 @@ import (
 
 // CalculateMemory портирует memory.cpp's CalculateMemory.
 // Оценивает сложность запоминания паттернов карты.
-// Требует md.AimPoints, md.Angles, md.Distances (заполняются в prepareMapData).
+// Требует данные карты, заполненные на этапе подготовки.
 func CalculateMemory(md *MapData, vars *Vars) float64 {
+	return md.calculateMemory(vars)
+}
+
+func (md *MapData) calculateMemory(vars *Vars) float64 {
 	totalMemPoints := 0.0
 	old := md.Map.HitObjects[0]
 	combo := 0

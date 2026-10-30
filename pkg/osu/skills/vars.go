@@ -20,9 +20,8 @@ type Vars struct {
 	values map[string]map[string]float64
 }
 
-// Get returns the named formula variable for a skill. Like the original
-// VARS[skill][name] lookup on a nested map, an unknown skill or variable
-// name simply returns the zero value (0.0) rather than an error.
+// Get returns the named formula variable for a skill. It panics when the
+// requested skill or variable is not present.
 func (v *Vars) Get(skill, name string) float64 {
 	skillVars, ok := v.values[skill]
 	if !ok {
@@ -37,9 +36,8 @@ func (v *Vars) Get(skill, name string) float64 {
 	return value
 }
 
-// DefaultVars returns the built-in default values (ResetFormulaVars in the
-// original code). Only the "Reading" section is populated so far — the
-// other skills' sections will be filled in as each of them gets ported.
+// DefaultVars returns the built-in formula values. The returned values are
+// treated as immutable and can be shared across concurrent calculations.
 func DefaultVars() *Vars {
 	return &Vars{
 		values: map[string]map[string]float64{

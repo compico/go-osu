@@ -64,11 +64,11 @@ func ProcessBeatmap(bm *osu.Beatmap, mods osu.Mod, vars *Vars) *SkillResult {
 		)
 	}
 
-	prepareMapData(md)
+	md.prepare()
 
-	calculateAimStrains(md, vars)
-	calculateTapStrains(md, vars)
-	calculateSkills(md, vars)
+	md.calculateAimStrains(vars)
+	md.calculateTapStrains(vars)
+	md.calculateSkills(vars)
 
 	return &SkillResult{
 		Mods:       mods,
