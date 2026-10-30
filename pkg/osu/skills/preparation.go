@@ -15,7 +15,7 @@ func (md *MapData) prepare() {
 	md.prepareTimingPoints()
 	md.approximateSliderPoints()
 	md.bakeSliderData()
-	md.reservePreparationStorage()
+	md.prepareHitObjectData()
 
 	// PrepareAimData
 	md.gatherTargetPoints()
@@ -23,18 +23,16 @@ func (md *MapData) prepare() {
 	md.calculateAngles()
 
 	// PrepareTapData
-	md.calculatePressIntervals()
 	md.gatherTapPatterns()
 }
 
-// reservePreparationStorage counts the derived points and intervals that the
-// preparation stages will append, so those stages can allocate their output
-// slices once at the required size.
-func (md *MapData) reservePreparationStorage() {
+// prepareHitObjectData counts derived point capacities and gathers press
+// intervals in one pass over the hit objects.
+func (md *MapData) prepareHitObjectData() {
 	var aimAndReadingPointCount int
 	var targetPointCount int
-	var pressIntervalCount int
-	previousPressable := false
+	md.PressIntervals = make([]int, 0, max(0, len(md.Map.HitObjects)-1))
+	previousPressTime := -1
 	previousTargetTime := math.MinInt32
 	sliderEndThreshold := 2 * float64(cs2px(md.Map.CircleSize))
 
@@ -42,10 +40,10 @@ func (md *MapData) reservePreparationStorage() {
 		ho := &md.Map.HitObjects[i]
 		isPressable := ho.Type.IsHitNormal() || ho.Type.IsHitSlider()
 		if isPressable {
-			if previousPressable {
-				pressIntervalCount++
+			if previousPressTime != -1 {
+				md.PressIntervals = append(md.PressIntervals, ho.Time-previousPressTime)
 			}
-			previousPressable = true
+			previousPressTime = ho.Time
 		}
 
 		if absInt(ho.Time-previousTargetTime) < 5 {
@@ -71,20 +69,6 @@ func (md *MapData) reservePreparationStorage() {
 	md.AimPoints = make([]AimPoint, 0, aimAndReadingPointCount)
 	md.ReadingPoints = make([]ReadingPoint, 0, aimAndReadingPointCount)
 	md.TargetPoints = make([]TargetPoint, 0, targetPointCount)
-	md.PressIntervals = make([]int, 0, pressIntervalCount)
-}
-
-func (md *MapData) calculatePressIntervals() {
-	previousTime := -1
-	for _, ho := range md.Map.HitObjects {
-		if ho.Type.IsHitNormal() || ho.Type.IsHitSlider() {
-			if previousTime != -1 {
-				md.PressIntervals = append(md.PressIntervals, ho.Time-previousTime)
-			}
-
-			previousTime = ho.Time
-		}
-	}
 }
 
 func (md *MapData) gatherAimAndReadingPoints() {

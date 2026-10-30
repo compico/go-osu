@@ -14,6 +14,11 @@ type CircumscribedCircle struct {
 
 func NewCircumscribedCircle(hitObject *osu.HitObject) *CircumscribedCircle {
 	cc := &CircumscribedCircle{}
+	if !isValidSliderPixelLength(hitObject.PixelLength) {
+		cc.Curve = []vector2d.Vector2dd{hitObject.Pos}
+		hitObject.EndPoint = hitObject.Pos
+		return cc
+	}
 
 	getX := func(i int) float64 {
 		if i == 0 {
