@@ -184,8 +184,18 @@ func getConstantAngleNerfFactor(points []ReadingPoint, current *ReadingPoint) fl
 func getPastObjectDifficultyInfluence(points []ReadingPoint, current *ReadingPoint, ar float64) float64 {
 	pastObjectDifficultyInfluence := 0.0
 
+	firstVisibleIndex := current.Index
+	for firstVisibleIndex > 0 {
+		previous := &points[firstVisibleIndex-1]
+		if current.Time-previous.Time > 3000 || previous.Time < current.Preempt {
+			break
+		}
+		firstVisibleIndex--
+	}
+
 	var previous *ReadingPoint
-	for _, loopObj := range retrievePastVisibleObjects(points, current) {
+	for i := firstVisibleIndex; i < current.Index; i++ {
+		loopObj := &points[i]
 		loopDifficulty := getOpacityAt(current, loopObj.Time, ar, false)
 
 		// When aiming an object small distances mean previous objects may
@@ -241,30 +251,6 @@ func getOpacityAt(point *ReadingPoint, time int, ar float64, hidden bool) float6
 // for when objects are very distant in time, affecting reading less.
 func getTimeNerfFactor(deltaTime float64) float64 {
 	return clampVal(2.0-deltaTime/(readingWindowSize/2.0), 0.0, 1.0)
-}
-
-// retrievePastVisibleObjects ports reading.cpp's retrievePastVisibleObjects:
-// a list of objects that are visible on screen at the point in time the
-// current object becomes visible, oldest first.
-func retrievePastVisibleObjects(points []ReadingPoint, current *ReadingPoint) []*ReadingPoint {
-	var pastObjects []*ReadingPoint
-
-	for i := current.Index; i > 0; i-- {
-		prevPoint := &points[i-1]
-
-		if current.Time-prevPoint.Time > 3000 ||
-			prevPoint.Time < current.Preempt { // Current object not visible at the time object needs to be clicked.
-			break
-		}
-
-		pastObjects = append(pastObjects, prevPoint)
-	}
-
-	for l, r := 0, len(pastObjects)-1; l < r; l, r = l+1, r-1 {
-		pastObjects[l], pastObjects[r] = pastObjects[r], pastObjects[l]
-	}
-
-	return pastObjects
 }
 
 // retrieveCurrentVisibleObjectDensity ports reading.cpp's
