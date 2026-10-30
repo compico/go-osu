@@ -4,12 +4,12 @@ import (
 	"math"
 
 	"github.com/compico/go-osu/pkg/osu"
-	"github.com/compico/go-osu/pkg/vector2d"
 )
 
-// ApplyMods возвращает глубокую копию Beatmap с параметрами, изменёнными под моды.
-// Модифицирует AR, OD, HP, CS, а также тайминги и координаты (для HR).
-// Оригинальный Beatmap не изменяется.
+// ApplyMods returns a beatmap copy with parameters adjusted for the requested
+// mods. It does not mutate the original beatmap. Hit objects are copied with
+// their nested slices; timing points are copied before a speed-changing mod
+// transforms them.
 //
 // Порядок применения: HR/EZ → DT/HT (как в оригинальной osu!).
 func ApplyMods(original *osu.Beatmap, mods osu.Mod) *osu.Beatmap {
@@ -25,23 +25,7 @@ func ApplyMods(original *osu.Beatmap, mods osu.Mod) *osu.Beatmap {
 			continue
 		}
 
-		ho := *src
-		if len(src.Curves) > 0 {
-			ho.Curves = make([]vector2d.Vector2dd, len(src.Curves))
-			copy(ho.Curves, src.Curves)
-		}
-		if len(src.LerpPoints) > 0 {
-			ho.LerpPoints = make([]vector2d.Vector2dd, len(src.LerpPoints))
-			copy(ho.LerpPoints, src.LerpPoints)
-		}
-		if len(src.RepeatTimes) > 0 {
-			ho.RepeatTimes = make([]int, len(src.RepeatTimes))
-			copy(ho.RepeatTimes, src.RepeatTimes)
-		}
-		if len(src.Ticks) > 0 {
-			ho.Ticks = make([]int, len(src.Ticks))
-			copy(ho.Ticks, src.Ticks)
-		}
+		ho := src.Clone()
 		if ho.Type.IsHitNormal() {
 			ho.EndPoint = ho.Pos
 		}
