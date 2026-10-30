@@ -11,6 +11,7 @@ const (
 	readingHiddenMultiplier           = 0.28
 	readingFadeOutDurationMultiplier  = 0.3
 	readingStrainDecayBase            = 0.8
+	readingStrainDecayLog2            = -0.32192809488736235
 	readingMinDeltaTime               = 15.0
 
 	readingDensityDifficultyBase = 2.5
@@ -73,7 +74,7 @@ func (md *MapData) calculateReading(vars *Vars, hidden bool) {
 		}
 
 		diff := evaluateDifficultyOf(md.ReadingPoints, current, previous, next, md.Map.ApproachRate, hidden)
-		decay := math.Pow(readingStrainDecayBase, interval/1000)
+		decay := math.Exp2(readingStrainDecayLog2 * (interval / 1000))
 
 		strain *= decay
 		strain += diff * (1 - decay)
@@ -126,7 +127,7 @@ func evaluateDifficultyOf(points []ReadingPoint, current, previous, next *Readin
 	readingDifficulty := norm(1.5, []float64{hiddenDifficulty, noteDensityDifficulty})
 
 	// Having less time to process information is harder.
-	readingDifficulty *= 1.0 / (1.0 - math.Pow(0.5, interval/1000))
+	readingDifficulty *= 1.0 / (1.0 - math.Exp2(-interval/1000))
 
 	return readingDifficulty
 }
