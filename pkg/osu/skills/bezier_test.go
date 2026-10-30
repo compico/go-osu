@@ -2,6 +2,7 @@ package skills
 
 import (
 	"math"
+	"sync"
 	"testing"
 
 	"github.com/compico/go-osu/pkg/vector2d"
@@ -49,6 +50,70 @@ func TestBezierPointAtMatchesBernsteinEvaluation(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestBezierCurveMetricsAreComputedOnDemand(t *testing.T) {
+	bezier := NewBezier([]vector2d.Vector2dd{
+		vector2d.New[float64](0, 0),
+		vector2d.New[float64](128, 256),
+		vector2d.New[float64](384, 64),
+	})
+
+	if bezier.curveDis != nil {
+		t.Fatal("curve distances were allocated during initialization")
+	}
+	if bezier.totalDistance != 0 {
+		t.Fatal("total curve distance was calculated during initialization")
+	}
+
+	curveDistances := bezier.GetCurveDistances()
+	if len(curveDistances) != bezier.curveCount {
+		t.Fatalf("got %d curve distances, want %d", len(curveDistances), bezier.curveCount)
+	}
+	if curveDistances[0] != 0 {
+		t.Fatalf("first curve distance = %g, want 0", curveDistances[0])
+	}
+
+	wantTotalDistance := 0.0
+	for i := 1; i < len(bezier.curvePoints); i++ {
+		want := bezier.curvePoints[i].DistanceFrom(bezier.curvePoints[i-1])
+		if curveDistances[i] != want {
+			t.Fatalf("curve distance %d = %g, want %g", i, curveDistances[i], want)
+		}
+		wantTotalDistance += want
+	}
+
+	if got := bezier.GetTotalDistance(); got != wantTotalDistance {
+		t.Fatalf("total curve distance = %g, want %g", got, wantTotalDistance)
+	}
+}
+
+func TestBezierCurveMetricsCanBeReadConcurrently(t *testing.T) {
+	bezier := NewBezier([]vector2d.Vector2dd{
+		vector2d.New[float64](0, 0),
+		vector2d.New[float64](128, 256),
+		vector2d.New[float64](384, 64),
+	})
+	wantDistanceCount := bezier.curveCount
+	wantTotalDistance := 0.0
+	for i := 1; i < len(bezier.curvePoints); i++ {
+		wantTotalDistance += bezier.curvePoints[i].DistanceFrom(bezier.curvePoints[i-1])
+	}
+
+	var wg sync.WaitGroup
+	for i := 0; i < 16; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if got := len(bezier.GetCurveDistances()); got != wantDistanceCount {
+				t.Errorf("curve distance count = %d, want %d", got, wantDistanceCount)
+			}
+			if got := bezier.GetTotalDistance(); got != wantTotalDistance {
+				t.Errorf("total curve distance = %g, want %g", got, wantTotalDistance)
+			}
+		}()
+	}
+	wg.Wait()
 }
 
 func referenceBezierPointAt(points []vector2d.Vector2dd, t float64) vector2d.Vector2dd {
