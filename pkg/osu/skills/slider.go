@@ -84,7 +84,7 @@ func (s *Slider) Init(curvesList []*Bezier, hitObject *osu.HitObject) {
 	var curveCounter int = 0
 	var curPoint int = 0
 
-	curCurve := *curvesList[curveCounter]
+	curCurve := curvesList[curveCounter]
 	curveCounter++
 	lastCurve := curCurve.curvePoints[0]
 	var lastDistanceAt float64 = 0
@@ -100,7 +100,7 @@ func (s *Slider) Init(curvesList []*Bezier, hitObject *osu.HitObject) {
 
 			if curPoint >= curCurve.curveCount {
 				if curveCounter < len(curvesList) {
-					curCurve = *curvesList[curveCounter]
+					curCurve = curvesList[curveCounter]
 					curveCounter++
 					curPoint = 0
 				} else {
@@ -110,7 +110,7 @@ func (s *Slider) Init(curvesList []*Bezier, hitObject *osu.HitObject) {
 					}
 				}
 			}
-			distanceAt += curCurve.curveDis[curPoint]
+			distanceAt += curCurve.curveDistanceAt(curPoint)
 		}
 		thisCurve := curCurve.curvePoints[curPoint]
 

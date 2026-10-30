@@ -1,13 +1,18 @@
 package skills
 
-import "github.com/compico/go-osu/pkg/vector2d"
+import (
+	"sync"
+
+	"github.com/compico/go-osu/pkg/vector2d"
+)
 
 type Bezier struct {
-	points        []vector2d.Vector2dd
-	curvePoints   []vector2d.Vector2dd
-	curveDis      []float64
-	curveCount    int
-	totalDistance float64
+	points           []vector2d.Vector2dd
+	curvePoints      []vector2d.Vector2dd
+	curveDis         []float64
+	curveCount       int
+	totalDistance    float64
+	curveMetricsOnce sync.Once
 }
 
 // NewBezier creates a Bezier curve approximated via point densities
@@ -41,16 +46,9 @@ func (b *Bezier) Init(approxLength float64) {
 		b.curvePoints[i] = b.pointAt(t, points)
 	}
 
-	b.curveDis = make([]float64, b.curveCount)
+	b.curveDis = nil
 	b.totalDistance = 0
-	for i := 0; i < b.curveCount; i++ {
-		if i == 0 {
-			b.curveDis[i] = 0
-		} else {
-			b.curveDis[i] = b.curvePoints[i].DistanceFrom(b.curvePoints[i-1])
-		}
-		b.totalDistance += b.curveDis[i]
-	}
+	b.curveMetricsOnce = sync.Once{}
 }
 
 // PointAt evaluates a point at parameter t in [0, 1].
@@ -86,7 +84,28 @@ func (b *Bezier) GetCurvePoints() []vector2d.Vector2dd {
 }
 
 func (b *Bezier) GetCurveDistances() []float64 {
+	if len(b.curvePoints) == 0 {
+		return nil
+	}
+	b.calculateCurveMetrics()
 	return b.curveDis
+}
+
+func (b *Bezier) calculateCurveMetrics() {
+	b.curveMetricsOnce.Do(func() {
+		b.curveDis = make([]float64, len(b.curvePoints))
+		for i := 1; i < len(b.curvePoints); i++ {
+			b.curveDis[i] = b.curvePoints[i].DistanceFrom(b.curvePoints[i-1])
+			b.totalDistance += b.curveDis[i]
+		}
+	})
+}
+
+func (b *Bezier) curveDistanceAt(index int) float64 {
+	if index == 0 {
+		return 0
+	}
+	return b.curvePoints[index].DistanceFrom(b.curvePoints[index-1])
 }
 
 func (b *Bezier) GetCurvesCount() int {
@@ -94,5 +113,6 @@ func (b *Bezier) GetCurvesCount() int {
 }
 
 func (b *Bezier) GetTotalDistance() float64 {
+	b.calculateCurveMetrics()
 	return b.totalDistance
 }
