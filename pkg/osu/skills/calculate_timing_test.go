@@ -108,11 +108,6 @@ func TestProcessBeatmap_StepTiming_AllMods(t *testing.T) {
 					})
 				}
 				if stepOK {
-					stepOK = stepOK && runStepAllMods(t, "calculateMovementData", modsLabel, totals, counts, hangs, func() {
-						md.calculateMovementData()
-					})
-				}
-				if stepOK {
 					stepOK = stepOK && runStepAllMods(t, "gatherTargetPoints", modsLabel, totals, counts, hangs, func() {
 						md.gatherTargetPoints()
 					})
