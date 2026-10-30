@@ -9,4 +9,4 @@ if ! find "$fixture_dir" -maxdepth 1 -type f -name '*.osu' -print -quit | grep -
 fi
 
 echo "Running osuSkills reference check..." >&2
-go.exe test ./pkg/osu/skills -run '^TestSkillsValues_CompareWithReference$' -count=1
+go test ./pkg/osu/skills -run '^TestSkillsValues_CompareWithReference$' -count=1
