@@ -5,6 +5,8 @@ import "math"
 // strains.cpp. It turns the press intervals into the per-note strain curve
 // that stamina uses for the final score.
 func (md *MapData) calculateTapStrains(vars *Vars) {
+	md.TapStrains = make([]float64, 0, len(md.PressIntervals))
+
 	largestInterval := vars.Stamina.LargestInterval
 	scale := vars.Stamina.Scale
 	pow := vars.Stamina.Pow

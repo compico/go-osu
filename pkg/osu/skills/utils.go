@@ -82,7 +82,7 @@ func getWeightedValue2(vals []float64, decay float64) float64 {
 // mirrors "no peaks for len < 2" via a plain int comparison instead of
 // relying on unsigned wraparound.
 func getPeakVals(vals []float64) (output []float64) {
-	output = make([]float64, 0)
+	output = make([]float64, 0, max(0, (len(vals)-1)/2))
 
 	for i := 1; i < len(vals)-1; i++ {
 		if vals[i] > vals[i-1] && vals[i] > vals[i+1] {
