@@ -23,7 +23,7 @@ func TestSkillsValues_OutputForComparison(t *testing.T) {
 		t.Skip("no .osu files found in ./test_data")
 	}
 
-	vars := DefaultVars()
+	vars := NewVars()
 
 	fmt.Println("\n=== Skill Calculation Results (No Mods) ===")
 	fmt.Println("Format: beatmap_id | stamina | tenacity | agility | precision | reading | memory | accuracy | reaction")
@@ -105,7 +105,7 @@ func TestSkillsValues_Race(t *testing.T) {
 		t.Skip("no .osu files found in ./test_data")
 	}
 
-	vars := DefaultVars()
+	vars := NewVars()
 
 	for _, f := range files {
 		f := f // фиксируем переменную цикла
@@ -164,7 +164,7 @@ func TestSkillsValues_CompareWithReference(t *testing.T) {
 		t.Skip("no .osu files found in ./test_data; reference comparison not run")
 	}
 
-	vars := DefaultVars()
+	vars := NewVars()
 
 	const epsilon = 0.001
 	comparisons := 0
