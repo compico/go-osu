@@ -36,3 +36,33 @@ func TestReadingCosineApproxBoundaries(t *testing.T) {
 		t.Error("readingCosineApprox(NaN) must return NaN")
 	}
 }
+
+func TestReadingExp2MatchesOriginalPowers(t *testing.T) {
+	const maxAbsoluteError = 5e-16
+
+	for milliseconds := 15; milliseconds <= 3000; milliseconds++ {
+		exponent := float64(milliseconds) / 1000
+		cases := []struct {
+			name string
+			got  float64
+			want float64
+		}{
+			{
+				name: "strain decay",
+				got:  math.Exp2(readingStrainDecayLog2 * exponent),
+				want: math.Pow(readingStrainDecayBase, exponent),
+			},
+			{
+				name: "processing time",
+				got:  math.Exp2(-exponent),
+				want: math.Pow(0.5, exponent),
+			},
+		}
+
+		for _, tc := range cases {
+			if error := math.Abs(tc.got - tc.want); error > maxAbsoluteError {
+				t.Errorf("%s at %dms: error %g exceeds %g", tc.name, milliseconds, error, maxAbsoluteError)
+			}
+		}
+	}
+}
