@@ -70,6 +70,20 @@ func (b *Bezier) pointAt(t float64, points []vector2d.Vector2dd) vector2d.Vector
 	if len(points) == 0 {
 		return vector2d.Vector2dd{}
 	}
+	if len(points) == 2 {
+		points[0].X = lerp(points[0].X, points[1].X, t)
+		points[0].Y = lerp(points[0].Y, points[1].Y, t)
+		return points[0]
+	}
+	if len(points) == 3 {
+		points[0].X = lerp(points[0].X, points[1].X, t)
+		points[0].Y = lerp(points[0].Y, points[1].Y, t)
+		points[1].X = lerp(points[1].X, points[2].X, t)
+		points[1].Y = lerp(points[1].Y, points[2].Y, t)
+		points[0].X = lerp(points[0].X, points[1].X, t)
+		points[0].Y = lerp(points[0].Y, points[1].Y, t)
+		return points[0]
+	}
 	for level := len(points) - 1; level > 0; level-- {
 		for i := 0; i < level; i++ {
 			points[i].X = lerp(points[i].X, points[i+1].X, t)
