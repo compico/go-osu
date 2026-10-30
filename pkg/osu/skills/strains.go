@@ -4,10 +4,6 @@ import "math"
 
 // strains.cpp. It turns the press intervals into the per-note strain curve
 // that stamina uses for the final score.
-func calculateTapStrains(md *MapData, vars *Vars) {
-	md.calculateTapStrains(vars)
-}
-
 func (md *MapData) calculateTapStrains(vars *Vars) {
 	count := 0
 	strain := 0.0
@@ -68,10 +64,6 @@ func getWeightedAimTime(time float64, vars *Vars) float64 {
 
 // calculateAimStrains вычисляет страйны для Agility v2.
 // Требует md.AimPoints, md.AngleBonuses (заполняются в calculateAnglesAndBonuses).
-func calculateAimStrains(md *MapData, vars *Vars) {
-	md.calculateAimStrains(vars)
-}
-
 func (md *MapData) calculateAimStrains(vars *Vars) {
 	md.AimStrains = make([]float64, 0, len(md.AimPoints))
 	oldStrain := 0.0

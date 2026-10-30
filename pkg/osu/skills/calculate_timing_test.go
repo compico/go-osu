@@ -155,7 +155,7 @@ func TestProcessBeatmap_StepTiming_AllMods(t *testing.T) {
 
 				if stepOK {
 					stepOK = stepOK && runStepAllMods(t, "CalculateAimStrains", modsLabel, totals, counts, hangs, func() {
-						calculateAimStrains(md, vars)
+						md.calculateAimStrains(vars)
 					})
 				}
 

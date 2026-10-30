@@ -1,4 +1,8 @@
-.PHONY: init deps build build-prod build-linux build-windows frontend-build frontend-dev run clean
+.PHONY: init deps build build-prod build-linux build-windows frontend-build frontend-dev run clean install-hooks
+
+install-hooks:
+	chmod +x .githooks/pre-commit
+	git config --local core.hooksPath .githooks
 
 init:
 	go mod download
