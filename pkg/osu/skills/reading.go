@@ -15,7 +15,36 @@ const (
 
 	readingDensityDifficultyBase = 2.5
 	readingDensityMultiplier     = 2.4
+
+	readingCosineTableStep = 0.005
+	readingCosineTableMax  = 90.0
+	readingCosineTableSize = int(readingCosineTableMax/readingCosineTableStep) + 1
 )
+
+// The Reading angle penalty always passes a value in [0, 90] to cosine.
+// Interpolation error for this table is checked in reading_test.go.
+var readingCosineTable [readingCosineTableSize]float64
+
+func init() {
+	for i := range readingCosineTable {
+		readingCosineTable[i] = math.Cos(float64(i) * readingCosineTableStep)
+	}
+}
+
+func readingCosineApprox(x float64) float64 {
+	if x < 0 || x > readingCosineTableMax || math.IsNaN(x) {
+		return math.Cos(x)
+	}
+	if x == readingCosineTableMax {
+		return readingCosineTable[len(readingCosineTable)-1]
+	}
+
+	position := x / readingCosineTableStep
+	index := int(position)
+	fraction := position - float64(index)
+	low := readingCosineTable[index]
+	return low + (readingCosineTable[index+1]-low)*fraction
+}
 
 // CalculateReading ports reading.cpp's CalculateReading. It requires
 // md.ReadingPoints to be populated by the map preparation stage and writes
@@ -168,7 +197,7 @@ func getConstantAngleNerfFactor(points []ReadingPoint, current *ReadingPoint) fl
 			angleDifferenceAlternating = lerp(180, 0.1*angleDifferenceAlternating, weight)
 
 			stackFactor := smootherStep(loopObj.Dist, 0, 50)
-			constantAngleCount += math.Cos(3*math.Min(30, math.Min(angleDifference, angleDifferenceAlternating)*stackFactor)) * longIntervalFactor
+			constantAngleCount += readingCosineApprox(3*math.Min(30, math.Min(angleDifference, angleDifferenceAlternating)*stackFactor)) * longIntervalFactor
 		}
 
 		loopObjPrev2 = loopObjPrev1
