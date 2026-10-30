@@ -70,8 +70,22 @@ func NewSlider(hitObject *osu.HitObject, line bool) *Slider {
 	return s
 }
 
+func isValidSliderPixelLength(pixelLength float64) bool {
+	return pixelLength > 0 && !math.IsInf(pixelLength, 0)
+}
+
 // Init compiles multi-segment curves and generates exactly equidistant tracking points
 func (s *Slider) Init(curvesList []*Bezier, hitObject *osu.HitObject) {
+	if !isValidSliderPixelLength(hitObject.PixelLength) {
+		// Malformed maps can contain negative, NaN, or infinite slider lengths.
+		// Treat these as a degenerate slider so they cannot produce an invalid
+		// slice length or crash processing of the rest of the map.
+		s.Ncurve = 0
+		s.Curve = []vector2d.Vector2dd{hitObject.Pos}
+		hitObject.EndPoint = hitObject.Pos
+		return
+	}
+
 	s.Ncurve = int(hitObject.PixelLength / CurvePointsSeparation)
 	s.Curve = make([]vector2d.Vector2dd, s.Ncurve+1)
 

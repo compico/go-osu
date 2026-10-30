@@ -108,6 +108,11 @@ func TestProcessBeatmap_StepTiming_AllMods(t *testing.T) {
 					})
 				}
 				if stepOK {
+					stepOK = stepOK && runStepAllMods(t, "prepareHitObjectData", modsLabel, totals, counts, hangs, func() {
+						md.prepareHitObjectData()
+					})
+				}
+				if stepOK {
 					stepOK = stepOK && runStepAllMods(t, "gatherTargetPoints", modsLabel, totals, counts, hangs, func() {
 						md.gatherTargetPoints()
 					})
@@ -121,12 +126,6 @@ func TestProcessBeatmap_StepTiming_AllMods(t *testing.T) {
 				if stepOK {
 					stepOK = stepOK && runStepAllMods(t, "calculateAngles", modsLabel, totals, counts, hangs, func() {
 						md.calculateAngles()
-					})
-				}
-
-				if stepOK {
-					stepOK = stepOK && runStepAllMods(t, "calculatePressIntervals", modsLabel, totals, counts, hangs, func() {
-						md.calculatePressIntervals()
 					})
 				}
 
