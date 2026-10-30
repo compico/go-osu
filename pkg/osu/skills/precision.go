@@ -18,13 +18,13 @@ func (md *MapData) calculatePrecision(vars *Vars) {
 
 	// Масштабируем agility
 	var scaledAgility float64
-	agilityLimit := vars.Get("Precision", "AgilityLimit")
+	agilityLimit := vars.Precision.AgilityLimit
 	if md.Skills.Agility > agilityLimit {
 		scaledAgility = 1.0
 	}
 
-	agilityPow := vars.Get("Precision", "AgilityPow")
-	agilitySubtract := vars.Get("Precision", "AgilitySubtract")
+	agilityPow := vars.Precision.AgilityPow
+	agilitySubtract := vars.Precision.AgilitySubtract
 	scaledAgility = math.Pow(md.Skills.Agility+1, agilityPow) - agilitySubtract
 
 	debugf("[PRECISION] agilityLimit=%v agilityPow=%v agilitySubtract=%v scaledAgility=%v\n",
@@ -36,8 +36,8 @@ func (md *MapData) calculatePrecision(vars *Vars) {
 	debugf("[PRECISION] precision(before totalMult/Pow)=%v\n", precision)
 
 	// Применяем финальный множитель
-	totalMult := vars.Get("Precision", "TotalMult")
-	totalPow := vars.Get("Precision", "TotalPow")
+	totalMult := vars.Precision.TotalMult
+	totalPow := vars.Precision.TotalPow
 
 	md.Skills.Precision = totalMult * math.Pow(precision, totalPow)
 

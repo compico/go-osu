@@ -34,21 +34,21 @@ func (md *MapData) calculateAgility(vars *Vars) {
 
 	md.Skills.Agility = getWeightedValue2(
 		topWeights,
-		vars.Get("Agility", "Weighting"),
+		vars.Agility.Weighting,
 	)
 
 	debugf(
 		"[AGILITY] weighted=%v Weighting=%v TotalMult=%v TotalPow=%v\n",
 		md.Skills.Agility,
-		vars.Get("Agility", "Weighting"),
-		vars.Get("Agility", "TotalMult"),
-		vars.Get("Agility", "TotalPow"),
+		vars.Agility.Weighting,
+		vars.Agility.TotalMult,
+		vars.Agility.TotalPow,
 	)
 
-	md.Skills.Agility = vars.Get("Agility", "TotalMult") *
+	md.Skills.Agility = vars.Agility.TotalMult *
 		math.Pow(
 			md.Skills.Agility,
-			vars.Get("Agility", "TotalPow"),
+			vars.Agility.TotalPow,
 		)
 
 	debugf("[AGILITY] final=%v\n", md.Skills.Agility)

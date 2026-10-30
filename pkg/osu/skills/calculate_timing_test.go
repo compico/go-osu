@@ -49,7 +49,7 @@ func TestProcessBeatmap_StepTiming_AllMods(t *testing.T) {
 		t.Skip("no .osu files found in ./test_data")
 	}
 
-	vars := DefaultVars()
+	vars := NewVars()
 
 	for _, f := range files {
 		f := f

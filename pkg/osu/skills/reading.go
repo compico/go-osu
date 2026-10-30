@@ -59,8 +59,8 @@ func (md *MapData) calculateReading(vars *Vars, hidden bool) {
 	// map, since std::max_element on an empty range can't be dereferenced.)
 	topWeights := getPeakVals(md.ReadingStrains)
 
-	md.Skills.Reading = getWeightedValue2(topWeights, vars.Get("Reading", "Weighting"))
-	md.Skills.Reading = vars.Get("Reading", "TotalMult") * math.Pow(md.Skills.Reading, vars.Get("Reading", "TotalPow"))
+	md.Skills.Reading = getWeightedValue2(topWeights, vars.Reading.Weighting)
+	md.Skills.Reading = vars.Reading.TotalMult * math.Pow(md.Skills.Reading, vars.Reading.TotalPow)
 }
 
 // evaluateDifficultyOf ports reading.cpp's EvaluateDifficultyOf.

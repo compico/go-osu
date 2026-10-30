@@ -230,7 +230,7 @@ func NewSyncer(osuSvc *Osu, repos *repository.Repos, logger *slog.Logger, opts .
 		repos:            repos,
 		logger:           logger.With("component", "sync"),
 		modCombinations:  skills.DefaultModCombinations(),
-		vars:             skills.DefaultVars(),
+		vars:             skills.NewVars(),
 		concurrency:      defaultConcurrency(),
 		skillCalcTimeout: defaultSkillCalcTimeout,
 		lastProgressEmit: make(map[string]time.Time),

@@ -41,7 +41,7 @@ func patternReq(p1, p2, p3 TargetPoint, csPx float64) float64 {
 // pattern2Reaction ports reaction.cpp's Pattern2Reaction.
 // See https://www.desmos.com/calculator/k9r2uipjfq
 func pattern2Reaction(p1, p2, p3 TargetPoint, arMs, csPx float64, vars *Vars) float64 {
-	damping := vars.Get("Reaction", "PatternDamping")
+	damping := vars.Reaction.PatternDamping
 	patReq := patternReq(p1, p2, p3, csPx)
 
 	return arMs - arMs*math.Exp(-damping*patReq)
@@ -49,7 +49,7 @@ func pattern2Reaction(p1, p2, p3 TargetPoint, arMs, csPx float64, vars *Vars) fl
 
 // getReactionSkillAt ports reaction.cpp's getReactionSkillAt.
 func getReactionSkillAt(targetPoints []TargetPoint, targetPoint TargetPoint, hitobjects []osu.HitObject, ar, cs float64, hidden bool, vars *Vars) float64 {
-	fadeInReactReq := vars.Get("Reaction", "FadeinPercent")
+	fadeInReactReq := vars.Reaction.FadeinPercent
 	timeToReact := 0.0
 	index := findTimingAt(targetPoints, targetPoint.Time)
 
@@ -82,8 +82,8 @@ func getReactionSkillAt(targetPoints []TargetPoint, targetPoint TargetPoint, hit
 			timeSinceStart, actualArTime, cs2px(cs), result, timeToReact)
 	}
 
-	verScale := vars.Get("Reaction", "VerScale")
-	curveExp := vars.Get("Reaction", "CurveExp")
+	verScale := vars.Reaction.VerScale
+	curveExp := vars.Reaction.CurveExp
 	skillVal := verScale * math.Pow(react2Skill(timeToReact), curveExp)
 
 	debugf("[REACTION] react2Skill=%v verScale=%v curveExp=%v skillVal=%v\n", react2Skill(timeToReact), verScale, curveExp, skillVal)
@@ -100,7 +100,7 @@ func CalculateReaction(md *MapData, vars *Vars, hidden bool) {
 func (md *MapData) calculateReaction(vars *Vars, hidden bool) {
 	mx := 0.0
 	avg := 0.0
-	weight := vars.Get("Reaction", "AvgWeighting")
+	weight := vars.Reaction.AvgWeighting
 
 	for _, tick := range md.TargetPoints {
 		val := getReactionSkillAt(md.TargetPoints, tick, md.Map.HitObjects, md.Map.ApproachRate, md.Map.CircleSize, hidden, vars)

@@ -24,9 +24,9 @@ func (md *MapData) calculateTenacity(vars *Vars) {
 	}
 
 	// intervalScaled = 1.0 / pow(interval, pow(interval, IntervalPow) * IntervalMult) * IntervalMult2
-	intervalPow := vars.Get("Tenacity", "IntervalPow")
-	intervalMult := vars.Get("Tenacity", "IntervalMult")
-	intervalMult2 := vars.Get("Tenacity", "IntervalMult2")
+	intervalPow := vars.Tenacity.IntervalPow
+	intervalMult := vars.Tenacity.IntervalMult
+	intervalMult2 := vars.Tenacity.IntervalMult2
 
 	exponent := math.Pow(float64(longestStream.Interval), intervalPow) * intervalMult
 	intervalScaled := 1.0 / math.Pow(float64(longestStream.Interval), exponent) * intervalMult2
@@ -35,8 +35,8 @@ func (md *MapData) calculateTenacity(vars *Vars) {
 		intervalPow, intervalMult, intervalMult2, exponent, intervalScaled)
 
 	// lengthScaled = pow(LengthDivisor / length, (LengthDivisor / length) * LengthMult)
-	lengthDivisor := vars.Get("Tenacity", "LengthDivisor")
-	lengthMult := vars.Get("Tenacity", "LengthMult")
+	lengthDivisor := vars.Tenacity.LengthDivisor
+	lengthMult := vars.Tenacity.LengthMult
 
 	lengthBase := lengthDivisor / float64(longestStream.Length)
 	lengthScaled := math.Pow(lengthBase, lengthBase*lengthMult)
@@ -50,8 +50,8 @@ func (md *MapData) calculateTenacity(vars *Vars) {
 	debugf("[TENACITY] tenacity(before totalMult/Pow)=%v\n", tenacity)
 
 	// Применяем финальный множитель
-	totalMult := vars.Get("Tenacity", "TotalMult")
-	totalPow := vars.Get("Tenacity", "TotalPow")
+	totalMult := vars.Tenacity.TotalMult
+	totalPow := vars.Tenacity.TotalPow
 	md.Skills.Tenacity = totalMult * math.Pow(tenacity, totalPow)
 
 	debugf("[TENACITY] TotalMult=%v TotalPow=%v final=%v\n", totalMult, totalPow, md.Skills.Tenacity)

@@ -11,8 +11,8 @@ func CalculateStamina(md *MapData, vars *Vars) {
 }
 
 func (md *MapData) calculateStamina(vars *Vars) {
-	md.Skills.Stamina = vars.Get("Stamina", "TotalMult") *
-		math.Pow(MaxFloatSliceValue(md.TapStrains), vars.Get("Stamina", "TotalPow"))
+	md.Skills.Stamina = vars.Stamina.TotalMult *
+		math.Pow(MaxFloatSliceValue(md.TapStrains), vars.Stamina.TotalPow)
 }
 
 func MaxFloatSliceValue(x []float64) float64 {
