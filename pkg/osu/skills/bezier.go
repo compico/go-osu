@@ -1,10 +1,6 @@
 package skills
 
-import (
-	"math"
-
-	"github.com/compico/go-osu/pkg/vector2d"
-)
+import "github.com/compico/go-osu/pkg/vector2d"
 
 type Bezier struct {
 	points        []vector2d.Vector2dd
@@ -32,9 +28,17 @@ func NewBezier(points []vector2d.Vector2dd) *Bezier {
 func (b *Bezier) Init(approxLength float64) {
 	b.curveCount = int(approxLength/4.0) + 2
 	b.curvePoints = make([]vector2d.Vector2dd, b.curveCount)
+	var scratch [16]vector2d.Vector2dd
+	var points []vector2d.Vector2dd
+	if len(b.points) <= len(scratch) {
+		points = scratch[:len(b.points)]
+	} else {
+		points = make([]vector2d.Vector2dd, len(b.points))
+	}
 	for i := 0; i < b.curveCount; i++ {
 		t := float64(i) / float64(b.curveCount-1)
-		b.curvePoints[i] = b.PointAt(t)
+		copy(points, b.points)
+		b.curvePoints[i] = b.pointAt(t, points)
 	}
 
 	b.curveDis = make([]float64, b.curveCount)
@@ -49,37 +53,32 @@ func (b *Bezier) Init(approxLength float64) {
 	}
 }
 
-// PointAt evaluates a point at parameter t in [0, 1] using Bernstein polynomials
+// PointAt evaluates a point at parameter t in [0, 1].
 func (b *Bezier) PointAt(t float64) vector2d.Vector2dd {
-	var c vector2d.Vector2dd
-	n := len(b.points) - 1
-	for i := 0; i <= n; i++ {
-		bern := bernstein(i, n, t)
-		c.X += b.points[i].X * bern
-		c.Y += b.points[i].Y * bern
+	var scratch [16]vector2d.Vector2dd
+	var points []vector2d.Vector2dd
+	if len(b.points) <= len(scratch) {
+		points = scratch[:len(b.points)]
+	} else {
+		points = make([]vector2d.Vector2dd, len(b.points))
 	}
-	return c
+	copy(points, b.points)
+	return b.pointAt(t, points)
 }
 
-func bernstein(i, n int, t float64) float64 {
-	return binomialCoefficient(n, i) * math.Pow(t, float64(i)) * math.Pow(1-t, float64(n-i))
-}
-
-func binomialCoefficient(n, k int) float64 {
-	if k < 0 || k > n {
-		return 0
+// pointAt uses de Casteljau's algorithm, which avoids the repeated powers in
+// the expanded Bernstein sum while evaluating the same Bezier curve.
+func (b *Bezier) pointAt(t float64, points []vector2d.Vector2dd) vector2d.Vector2dd {
+	if len(points) == 0 {
+		return vector2d.Vector2dd{}
 	}
-	if k == 0 || k == n {
-		return 1
+	for level := len(points) - 1; level > 0; level-- {
+		for i := 0; i < level; i++ {
+			points[i].X = lerp(points[i].X, points[i+1].X, t)
+			points[i].Y = lerp(points[i].Y, points[i+1].Y, t)
+		}
 	}
-	if k > n/2 {
-		k = n - k
-	}
-	res := 1.0
-	for i := 1; i <= k; i++ {
-		res = res * float64(n-i+1) / float64(i)
-	}
-	return res
+	return points[0]
 }
 
 func (b *Bezier) GetCurvePoints() []vector2d.Vector2dd {
