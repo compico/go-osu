@@ -56,6 +56,7 @@ func CalculateReading(md *MapData, vars *Vars, hidden bool) {
 
 func (md *MapData) calculateReading(vars *Vars, hidden bool) {
 	n := len(md.ReadingPoints)
+	md.ReadingStrains = make([]float64, 0, n)
 	strain := 0.0
 
 	for i := 0; i < n; i++ {

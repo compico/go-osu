@@ -15,6 +15,7 @@ func (md *MapData) prepare() {
 	md.prepareTimingPoints()
 	md.approximateSliderPoints()
 	md.bakeSliderData()
+	md.reservePreparationStorage()
 
 	// PrepareAimData
 	md.gatherTargetPoints()
@@ -24,6 +25,53 @@ func (md *MapData) prepare() {
 	// PrepareTapData
 	md.calculatePressIntervals()
 	md.gatherTapPatterns()
+}
+
+// reservePreparationStorage counts the derived points and intervals that the
+// preparation stages will append, so those stages can allocate their output
+// slices once at the required size.
+func (md *MapData) reservePreparationStorage() {
+	var aimAndReadingPointCount int
+	var targetPointCount int
+	var pressIntervalCount int
+	previousPressable := false
+	previousTargetTime := math.MinInt32
+	sliderEndThreshold := 2 * float64(cs2px(md.Map.CircleSize))
+
+	for i := range md.Map.HitObjects {
+		ho := &md.Map.HitObjects[i]
+		isPressable := ho.Type.IsHitNormal() || ho.Type.IsHitSlider()
+		if isPressable {
+			if previousPressable {
+				pressIntervalCount++
+			}
+			previousPressable = true
+		}
+
+		if absInt(ho.Time-previousTargetTime) < 5 {
+			continue
+		}
+		previousTargetTime = ho.Time
+
+		if ho.Type.IsHitNormal() {
+			aimAndReadingPointCount++
+			targetPointCount++
+		} else if ho.Type.IsHitSlider() {
+			aimAndReadingPointCount++ // slider start
+			targetPointCount += len(ho.Ticks)
+
+			endTime := GetLastTickTime(*ho)
+			endPos := getSliderPos(*ho, endTime)
+			if len(ho.Ticks) > 0 || ho.Pos.DistanceFrom(endPos) > sliderEndThreshold {
+				aimAndReadingPointCount++ // slider end
+			}
+		}
+	}
+
+	md.AimPoints = make([]AimPoint, 0, aimAndReadingPointCount)
+	md.ReadingPoints = make([]ReadingPoint, 0, aimAndReadingPointCount)
+	md.TargetPoints = make([]TargetPoint, 0, targetPointCount)
+	md.PressIntervals = make([]int, 0, pressIntervalCount)
 }
 
 func (md *MapData) calculatePressIntervals() {
@@ -469,7 +517,8 @@ func findTimingAt(timings []TargetPoint, time float64) int {
 }
 
 func (md *MapData) calculateAngles() {
-	md.AngleBonuses = md.AngleBonuses[:0]
+	bonusCount := max(0, len(md.AimPoints)-2)
+	md.AngleBonuses = make([]float64, 0, bonusCount)
 
 	var oldAngle float64
 	first := true
