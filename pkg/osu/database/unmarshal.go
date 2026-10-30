@@ -35,10 +35,10 @@ func Unmarshal(filepath string, database *osu.Database) error {
 	database.DateUnlocked = d.decodeDouble()
 	database.PlayerName = d.decodeString()
 	database.NumberOfBeatmaps = d.decodeInt()
-	database.Beatmaps = make([]osu.DatabaseBeatmap, database.NumberOfBeatmaps)
+	database.Beatmaps = make([]osu.DatabaseBeatmap, 0, database.NumberOfBeatmaps)
 
-	for i := range database.Beatmaps {
-		bm := &database.Beatmaps[i]
+	for i := int32(0); i < database.NumberOfBeatmaps; i++ {
+		bm := osu.DatabaseBeatmap{}
 
 		bm.ArtistName = d.decodeString()
 		bm.ArtistNameUni = d.decodeString()
@@ -93,6 +93,8 @@ func Unmarshal(filepath string, database *osu.Database) error {
 		bm.VisualOverride = d.decodeBoolean()
 		bm.LastModificationTime = d.decodeInt()
 		bm.ManiaScrollSpeed = d.decodeByte()
+
+		database.Beatmaps = append(database.Beatmaps, bm)
 	}
 
 	database.Permissions = d.decodeInt()
