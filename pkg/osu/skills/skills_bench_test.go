@@ -42,7 +42,7 @@ func BenchmarkProcessBeatmap(b *testing.B) {
 		b.Skip("no standard-mode beatmap fixtures in ./test_data")
 	}
 
-	vars := DefaultVars()
+	vars := NewVars()
 	mods := []struct {
 		name string
 		mods osu.Mod

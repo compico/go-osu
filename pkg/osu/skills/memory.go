@@ -40,7 +40,7 @@ func (md *MapData) calculateMemory(vars *Vars) float64 {
 		sliderBonusFactor := 1.0
 
 		if old.Type.IsHitSlider() {
-			sliderBonusFactor = vars.Get("Memory", "SliderBuff")
+			sliderBonusFactor = vars.Memory.SliderBuff
 		}
 
 		observable := false
@@ -105,7 +105,7 @@ func (md *MapData) calculateMemory(vars *Vars) float64 {
 			} else {
 				if dist > float64(observableDist+helpPixels) {
 					memPoints = sliderBonusFactor *
-						vars.Get("Memory", "FollowpointsNerf") *
+						vars.Memory.FollowpointsNerf *
 						(dist / float64(ho.Time-old.Time))
 				}
 			}
@@ -126,8 +126,8 @@ func (md *MapData) calculateMemory(vars *Vars) float64 {
 			i, combo, observableDist, sliderBonusFactor, map[bool]int{false: 0, true: 1}[observable], helpPixels, memPoints, totalMemPoints, ho.Type)
 	}
 
-	md.Skills.Memory = vars.Get("Memory", "TotalMult") *
-		math.Pow(totalMemPoints, vars.Get("Memory", "TotalPow"))
+	md.Skills.Memory = vars.Memory.TotalMult *
+		math.Pow(totalMemPoints, vars.Memory.TotalPow)
 
 	return md.Skills.Memory
 }

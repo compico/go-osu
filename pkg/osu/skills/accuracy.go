@@ -35,12 +35,12 @@ func (md *MapData) calculateAccuracy(vars *Vars) {
 	}
 
 	// accuracy = stamina^VerScale / SS_UR
-	verScale := vars.Get("Accuracy", "VerScale")
+	verScale := vars.Accuracy.VerScale
 	accuracy := math.Pow(md.Skills.Stamina, verScale) / float64(ssUr)
 
 	// Применяем финальный множитель
-	totalMult := vars.Get("Accuracy", "TotalMult")
-	totalPow := vars.Get("Accuracy", "TotalPow")
+	totalMult := vars.Accuracy.TotalMult
+	totalPow := vars.Accuracy.TotalPow
 	md.Skills.Accuracy = totalMult * math.Pow(accuracy, totalPow)
 }
 

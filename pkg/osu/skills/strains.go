@@ -5,12 +5,12 @@ import "math"
 // strains.cpp. It turns the press intervals into the per-note strain curve
 // that stamina uses for the final score.
 func (md *MapData) calculateTapStrains(vars *Vars) {
-	largestInterval := vars.Get("Stamina", "LargestInterval")
-	scale := vars.Get("Stamina", "Scale")
-	pow := vars.Get("Stamina", "Pow")
-	mult := vars.Get("Stamina", "Mult")
-	decayMax := vars.Get("Stamina", "DecayMax")
-	decay := vars.Get("Stamina", "Decay")
+	largestInterval := vars.Stamina.LargestInterval
+	scale := vars.Stamina.Scale
+	pow := vars.Stamina.Pow
+	mult := vars.Stamina.Mult
+	decayMax := vars.Stamina.DecayMax
+	decay := vars.Stamina.Decay
 
 	count := 0
 	strain := 0.0
@@ -72,14 +72,14 @@ func getWeightedAimTime(time, multiplier, power float64) float64 {
 // calculateAimStrains вычисляет страйны для Agility v2.
 // Требует md.AimPoints, md.AngleBonuses (заполняются в calculateAnglesAndBonuses).
 func (md *MapData) calculateAimStrains(vars *Vars) {
-	distanceMultiplier := vars.Get("Agility", "DistMult")
-	distancePower := vars.Get("Agility", "DistPow")
-	distanceDivisor := vars.Get("Agility", "DistDivisor")
-	timeMultiplier := vars.Get("Agility", "TimeMult")
-	timePower := vars.Get("Agility", "TimePow")
-	angleMultiplier := vars.Get("Agility", "AngleMult")
-	sliderStrainDecay := vars.Get("Agility", "SliderStrainDecay")
-	strainDecay := vars.Get("Agility", "StrainDecay")
+	distanceMultiplier := vars.Agility.DistMult
+	distancePower := vars.Agility.DistPow
+	distanceDivisor := vars.Agility.DistDivisor
+	timeMultiplier := vars.Agility.TimeMult
+	timePower := vars.Agility.TimePow
+	angleMultiplier := vars.Agility.AngleMult
+	sliderStrainDecay := vars.Agility.SliderStrainDecay
+	strainDecay := vars.Agility.StrainDecay
 
 	md.AimStrains = make([]float64, 0, len(md.AimPoints))
 	oldStrain := 0.0
