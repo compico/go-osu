@@ -72,6 +72,14 @@ type Velocities struct {
 	X, Y, Xchange, Ychange []float64
 }
 
+// MovementData contains legacy movement metrics.
+//
+// Deprecated: the skill pipeline no longer calculates these unused metrics.
+type MovementData struct {
+	Distances  []float64
+	Velocities Velocities
+}
+
 // Patterns mirrors the anonymous "patterns" struct nested in the C++
 // Beatmap.
 type Patterns struct {
@@ -119,7 +127,9 @@ type MapData struct {
 	TimingPoints []TimingPoint
 
 	// Aim
+	// Deprecated: ProcessBeatmap no longer calculates these unused metrics.
 	Velocities Velocities
+	// Deprecated: ProcessBeatmap no longer calculates these unused metrics.
 	Distances  []float64
 	AimStrains []float64
 	AimPoints  []AimPoint

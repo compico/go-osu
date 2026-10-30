@@ -17,7 +17,6 @@ func (md *MapData) prepare() {
 	md.bakeSliderData()
 
 	// PrepareAimData
-	md.calculateMovementData()
 	md.gatherTargetPoints()
 	md.gatherAimAndReadingPoints()
 	md.calculateAngles()
@@ -325,65 +324,6 @@ func (md *MapData) bakeSliderData() {
 				md.Map.HitObjects[k].EndPoint = h.Pos
 			}
 		}
-	}
-}
-
-type MovementData struct {
-	Distances  []float64
-	Velocities Velocities
-}
-
-// calculateMovementData computes speed, distance, vector velocity, and acceleration changes
-func (md *MapData) calculateMovementData() {
-	if md.Map == nil || len(md.Map.HitObjects) == 0 {
-		return
-	}
-
-	var previousPos vector2d.Vector2dd
-	previousTime := -1
-
-	for _, ho := range md.Map.HitObjects {
-		if ho.Type.IsHitNormal() || ho.Type.IsHitSlider() {
-			if previousTime != -1 {
-				dx := ho.Pos.X - previousPos.X
-				dy := ho.Pos.Y - previousPos.Y
-				dist := math.Sqrt(dx*dx + dy*dy)
-
-				// Subtract radii of overlap
-				radSubtract := 2.0 * float64(cs2px(md.Map.CircleSize))
-				if dist >= radSubtract {
-					dist -= radSubtract
-				} else {
-					dist /= 2.0
-				}
-
-				interval := float64(ho.Time - previousTime)
-				if interval <= 0 {
-					interval = 1.0 // Prevent NaN
-				}
-
-				md.Distances = append(md.Distances, dist)
-				md.Velocities.X = append(md.Velocities.X, dx/interval)
-				md.Velocities.Y = append(md.Velocities.Y, dy/interval)
-			}
-
-			previousPos = ho.Pos
-			previousTime = ho.Time
-		}
-	}
-
-	var OldVelX float64 = 0
-	var OldVelY float64 = 0
-
-	for i := 0; i < len(md.Velocities.X); i++ {
-		vX := md.Velocities.X[i]
-		vY := md.Velocities.Y[i]
-		if i > 0 {
-			md.Velocities.Xchange = append(md.Velocities.Xchange, vX-OldVelX)
-			md.Velocities.Ychange = append(md.Velocities.Ychange, vY-OldVelY)
-		}
-		OldVelX = vX
-		OldVelY = vY
 	}
 }
 
