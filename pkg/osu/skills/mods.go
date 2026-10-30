@@ -77,17 +77,7 @@ func ApplyMods(original *osu.Beatmap, mods osu.Mod) *osu.Beatmap {
 	if mods&osu.DT != 0 {
 		const speed = 1.5
 
-		for i := range bm.TimingPoints {
-			bm.TimingPoints[i].Time = math.Ceil(bm.TimingPoints[i].Time / speed)
-			if bm.TimingPoints[i].Uninherited {
-				bm.TimingPoints[i].BeatLength /= speed
-			}
-		}
-
-		for i := range bm.HitObjects {
-			bm.HitObjects[i].Time = int(math.Ceil(float64(bm.HitObjects[i].Time) / speed))
-			bm.HitObjects[i].EndTime = int(math.Ceil(float64(bm.HitObjects[i].EndTime) / speed))
-		}
+		applySpeedMultiplier(&bm, speed)
 
 		bm.ApproachRate = math.Min(msToAR(int(float64(arToMs(bm.ApproachRate))/speed)), 11)
 	}
@@ -96,22 +86,29 @@ func ApplyMods(original *osu.Beatmap, mods osu.Mod) *osu.Beatmap {
 	if mods&osu.HT != 0 {
 		const speed = 0.75
 
-		for i := range bm.TimingPoints {
-			bm.TimingPoints[i].Time = math.Ceil(bm.TimingPoints[i].Time / speed)
-			if bm.TimingPoints[i].Uninherited {
-				bm.TimingPoints[i].BeatLength /= speed
-			}
-		}
-
-		for i := range bm.HitObjects {
-			bm.HitObjects[i].Time = int(math.Ceil(float64(bm.HitObjects[i].Time) / speed))
-			bm.HitObjects[i].EndTime = int(math.Ceil(float64(bm.HitObjects[i].EndTime) / speed))
-		}
+		applySpeedMultiplier(&bm, speed)
 
 		bm.ApproachRate = msToAR(int(float64(arToMs(bm.ApproachRate)) / speed))
 	}
 
 	return &bm
+}
+
+// applySpeedMultiplier adjusts timing points and hit object times for a
+// speed-changing mod. Keep AR conversion at the call site because DT caps AR
+// while HT does not.
+func applySpeedMultiplier(bm *osu.Beatmap, speed float64) {
+	for i := range bm.TimingPoints {
+		bm.TimingPoints[i].Time = math.Ceil(bm.TimingPoints[i].Time / speed)
+		if bm.TimingPoints[i].Uninherited {
+			bm.TimingPoints[i].BeatLength /= speed
+		}
+	}
+
+	for i := range bm.HitObjects {
+		bm.HitObjects[i].Time = int(math.Ceil(float64(bm.HitObjects[i].Time) / speed))
+		bm.HitObjects[i].EndTime = int(math.Ceil(float64(bm.HitObjects[i].EndTime) / speed))
+	}
 }
 
 func msToAR(ms int) float64 {
