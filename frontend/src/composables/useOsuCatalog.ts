@@ -1,4 +1,6 @@
 import { ref, shallowRef } from 'vue'
+import { PROGRESS_CHANNEL, realtimeClient } from '@/lib/realtime'
+import type { ProgressEvent } from '@/lib/realtime'
 import type { Track } from '@/types/player'
 
 export interface SkillsDTO {
@@ -113,7 +115,25 @@ function getSort(): string {
     return sortBy
 }
 
+let watchingSync = false
+
+/** The catalog is loaded once on first use, so without this it keeps showing
+ *  whatever the database held before the library sync started (nothing at
+ *  all on the first run). Re-run the current search — same query and sort —
+ *  when the sync reports `done`. The subscription lives as long as the page,
+ *  like the catalog state itself. */
+function reloadWhenSyncFinishes(): void {
+    if (watchingSync) return
+    watchingSync = true
+
+    void realtimeClient.subscribe<ProgressEvent>(PROGRESS_CHANNEL, (ev) => {
+        if (ev.stage === 'done') search(currentQuery)
+    })
+}
+
 export function useOsuCatalog() {
+    reloadWhenSyncFinishes()
+
     if (groups.value.length === 0 && !loading.value && hasMore.value) {
         loadMore()
     }
