@@ -149,6 +149,7 @@ import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 import { useThemeStore } from '@/stores/theme'
 import { usePlayerStore } from '@/stores/player.store'
 import { diffToTrack, useOsuCatalog } from '@/composables/useOsuCatalog'
+import { modsLabelFromQuery } from '@/utils/mods'
 import MapDetailsPanel from './MapDetailsPanel.vue'
 
 const themeStore = useThemeStore()
@@ -328,10 +329,7 @@ function starColor(stars) {
   return 'var(--osu-star-7)'
 }
 
-const currentModsLabel = computed(() => {
-  const match = searchQuery.value.match(/\bmode=([A-Za-z]+)\b/)
-  return match ? match[1].toUpperCase() : 'NoMod'
-})
+const currentModsLabel = computed(() => modsLabelFromQuery(searchQuery.value))
 </script>
 
 <style scoped>
