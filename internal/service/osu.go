@@ -52,20 +52,26 @@ type OsuSkins struct {
 }
 
 func (o *Osu) initGamePath() error {
-	if o.gamePath != "" {
-		return nil
-	}
+	if o.gamePath == "" {
+		path, err := detectGamePath()
+		if err != nil {
+			return err
+		}
 
-	if path, err := getPathFromRegistry(); err != nil {
-		return err
-	} else {
+		if o.Logger != nil {
+			o.Logger.Info("detected osu! game path", "path", path)
+		}
 		o.gamePath = path
 	}
 
+	o.gamePath = normalizeGamePath(o.gamePath)
 	if o.gamePath == "" {
 		return errors.New("game path is empty")
 	}
 
+	// Derived paths are needed for a configured path as much as for a
+	// detected one; returning before this left them empty, so every track,
+	// .osu file and background was looked up relative to the working directory.
 	o.initSongsPath()
 	o.initSkinsPath()
 	o.initBackgroundPath()
@@ -88,7 +94,7 @@ func (o *Osu) initBackgroundPath() {
 func (o *Osu) ReadOsuDBFile() error {
 	o.dataBase = &osu.Database{}
 
-	if err := database.Unmarshal(o.gamePath+"/osu!.db", o.dataBase); err != nil {
+	if err := database.Unmarshal(filepath.Join(o.gamePath, gameDBName), o.dataBase); err != nil {
 		return fmt.Errorf("cannot decode osu database file: %w", err)
 	}
 

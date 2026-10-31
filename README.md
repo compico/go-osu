@@ -83,6 +83,8 @@ osu:
   path: "C:/Games/osu!"   # or the equivalent path on your OS
 ```
 
+Outside Windows a Windows-style path is mapped to where WSL mounts the drive (`C:\Games\osu!` is read as `/mnt/c/Games/osu!`). If `osu.path` is left empty, the app looks the game up in the Windows registry on Windows, and in the usual WSL and Wine locations (`/mnt/*/Users/*/AppData/Local/osu!`, `~/.wine`, osu-wine, Lutris, Bottles) elsewhere.
+
 Development requires **two processes** running in parallel:
 
 ```bash

@@ -11,6 +11,13 @@ import (
 	"golang.org/x/sys/windows/registry"
 )
 
+// detectGamePath finds the osu! install through the registry entry the game
+// registers for its osu:// links. osu.path in the config always takes
+// precedence over this.
+func detectGamePath() (string, error) {
+	return getPathFromRegistry()
+}
+
 func getPathFromRegistry() (string, error) {
 	k, err := registry.OpenKey(registry.CLASSES_ROOT, `osustable.Uri.osu\DefaultIcon`, registry.QUERY_VALUE)
 	if err != nil {
