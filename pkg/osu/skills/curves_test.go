@@ -449,3 +449,106 @@ func TestAgilityCurveWithoutPeaks(t *testing.T) {
 		}
 	}
 }
+
+func TestReadingCurvePeakIsTheSkill(t *testing.T) {
+	bm := curvesTestBeatmap(t)
+	vars := NewVars()
+
+	for _, mods := range DefaultModCombinations() {
+		t.Run(mods.String(), func(t *testing.T) {
+			curve := ProcessCurves(bm, mods, vars).Reading
+			skill := ProcessBeatmap(bm, mods, vars).Skills.Reading
+
+			if len(curve) == 0 {
+				t.Fatal("empty reading curve")
+			}
+
+			peak := math.Inf(-1)
+			for _, p := range curve {
+				peak = math.Max(peak, p.Value)
+			}
+			if peak != skill {
+				t.Errorf("curve peak = %v, want the reading skill %v", peak, skill)
+			}
+		})
+	}
+}
+
+// Every note has a reading point, so the curve has a point for each of them at
+// its time (Ceil-rescaled by speed mods).
+func TestReadingCurveTimes(t *testing.T) {
+	vars := NewVars()
+	times := []int{1000, 1100, 1100, 1210, 1500}
+
+	for _, mods := range []osu.Mod{osu.NM, osu.DT, osu.HT, osu.HD | osu.HR} {
+		t.Run(mods.String(), func(t *testing.T) {
+			speed := modsSpeed(mods)
+			var want []int
+			for _, original := range times {
+				want = append(want, int(math.Ceil(float64(original)/speed)))
+			}
+			if got := curveTimes(ProcessCurves(circlesAt(times...), mods, vars).Reading); !reflect.DeepEqual(got, want) {
+				t.Errorf("times = %v, want %v", got, want)
+			}
+		})
+	}
+}
+
+func TestReadingCurveFollowsThePowerLawOfTheStrains(t *testing.T) {
+	bm := curvesTestBeatmap(t)
+	vars := NewVars()
+
+	for _, mods := range DefaultModCombinations() {
+		md := NewMapData(ApplyMods(bm, mods), mods)
+		md.prepare()
+		md.calculateReading(vars, md.HasMod(osu.HD))
+		curve := md.readingCurve(vars)
+
+		maxStrain, peak := MaxFloatSliceValue(md.ReadingStrains), 0.0
+		for _, p := range curve {
+			peak = math.Max(peak, p.Value)
+		}
+		if maxStrain == 0 || peak == 0 {
+			t.Fatalf("%s: maxStrain = %v, peak = %v", mods, maxStrain, peak)
+		}
+
+		for i, strain := range md.ReadingStrains {
+			want := math.Pow(strain/maxStrain, vars.Reading.TotalPow)
+			got := curve[i].Value / peak
+			if math.Abs(got-want) > 1e-9*math.Max(1, want) {
+				t.Fatalf("%s: point %d has %v of the peak, want %v", mods, i, got, want)
+			}
+		}
+	}
+}
+
+func TestReadingCurveIsOrderedAndFinite(t *testing.T) {
+	bm := curvesTestBeatmap(t)
+	vars := NewVars()
+
+	for _, mods := range DefaultModCombinations() {
+		curve := ProcessCurves(bm, mods, vars).Reading
+		for i, p := range curve {
+			if math.IsNaN(p.Value) || math.IsInf(p.Value, 0) || p.Value < 0 {
+				t.Fatalf("%s: point %d has value %v", mods, i, p.Value)
+			}
+			if i > 0 && p.Time < curve[i-1].Time {
+				t.Fatalf("%s: point %d at %d precedes point %d at %d", mods, i, p.Time, i-1, curve[i-1].Time)
+			}
+		}
+	}
+}
+
+// A map too short to have a strain peak has a reading of 0, and so has its curve.
+func TestReadingCurveWithoutPeaks(t *testing.T) {
+	curve := ProcessCurves(circlesAt(1000, 1100), osu.NM, NewVars()).Reading
+
+	if len(curve) != 2 {
+		t.Fatalf("curve = %v, want 2 points", curve)
+	}
+	for _, p := range curve {
+		if p.Value != 0 {
+			t.Errorf("curve = %v, want all zeros", curve)
+		}
+	}
+}
