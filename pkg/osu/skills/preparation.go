@@ -32,6 +32,7 @@ func (md *MapData) prepareHitObjectData() {
 	var aimAndReadingPointCount int
 	var targetPointCount int
 	md.PressIntervals = make([]int, 0, max(0, len(md.Map.HitObjects)-1))
+	md.PressTimes = make([]int, 0, max(0, len(md.Map.HitObjects)-1))
 	previousPressTime := -1
 	previousTargetTime := math.MinInt32
 	sliderEndThreshold := 2 * float64(cs2px(md.Map.CircleSize))
@@ -42,6 +43,7 @@ func (md *MapData) prepareHitObjectData() {
 		if isPressable {
 			if previousPressTime != -1 {
 				md.PressIntervals = append(md.PressIntervals, ho.Time-previousPressTime)
+				md.PressTimes = append(md.PressTimes, ho.Time)
 			}
 			previousPressTime = ho.Time
 		}

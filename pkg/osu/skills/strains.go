@@ -6,6 +6,7 @@ import "math"
 // that stamina uses for the final score.
 func (md *MapData) calculateTapStrains(vars *Vars) {
 	md.TapStrains = make([]float64, 0, len(md.PressIntervals))
+	md.TapStrainTimes = make([]int, 0, len(md.PressIntervals))
 
 	largestInterval := vars.Stamina.LargestInterval
 	scale := vars.Stamina.Scale
@@ -18,7 +19,7 @@ func (md *MapData) calculateTapStrains(vars *Vars) {
 	strain := 0.0
 	oldBonus := 0.0
 
-	for _, interval := range md.PressIntervals {
+	for i, interval := range md.PressIntervals {
 		intervalF := float64(interval)
 
 		if count == 0 {
@@ -33,6 +34,7 @@ func (md *MapData) calculateTapStrains(vars *Vars) {
 			}
 
 			md.TapStrains = append(md.TapStrains, strain)
+			md.TapStrainTimes = append(md.TapStrainTimes, md.PressTimes[i])
 		} else {
 			if intervalF >= largestInterval {
 				strain *= decayMax
@@ -51,6 +53,7 @@ func (md *MapData) calculateTapStrains(vars *Vars) {
 			}
 
 			md.TapStrains = append(md.TapStrains, strain)
+			md.TapStrainTimes = append(md.TapStrainTimes, md.PressTimes[i])
 		}
 
 		oldBonus = strain
