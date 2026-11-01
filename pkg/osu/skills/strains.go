@@ -87,6 +87,7 @@ func (md *MapData) calculateAimStrains(vars *Vars) {
 	strainDecay := vars.Agility.StrainDecay
 
 	md.AimStrains = make([]float64, 0, len(md.AimPoints))
+	md.AimStrainTimes = make([]int, 0, len(md.AimPoints))
 	oldStrain := 0.0
 
 	// debug vars
@@ -160,6 +161,7 @@ func (md *MapData) calculateAimStrains(vars *Vars) {
 			}
 		}
 		md.AimStrains = append(md.AimStrains, strain)
+		md.AimStrainTimes = append(md.AimStrainTimes, md.AimPoints[i].Time)
 		oldStrain = strain
 	}
 }

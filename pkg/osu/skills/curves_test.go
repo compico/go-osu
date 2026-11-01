@@ -281,3 +281,171 @@ func TestProcessCurvesConcurrentAndReadOnly(t *testing.T) {
 		t.Fatal("ProcessCurves modified the source beatmap")
 	}
 }
+
+func TestAgilityCurvePeakIsTheSkill(t *testing.T) {
+	bm := curvesTestBeatmap(t)
+	vars := NewVars()
+
+	for _, mods := range DefaultModCombinations() {
+		t.Run(mods.String(), func(t *testing.T) {
+			curve := ProcessCurves(bm, mods, vars).Agility
+			skill := ProcessBeatmap(bm, mods, vars).Skills.Agility
+
+			if len(curve) == 0 {
+				t.Fatal("empty agility curve")
+			}
+
+			peak := math.Inf(-1)
+			for _, p := range curve {
+				peak = math.Max(peak, p.Value)
+			}
+			if peak != skill {
+				t.Errorf("curve peak = %v, want the agility skill %v", peak, skill)
+			}
+		})
+	}
+}
+
+func TestAgilityCurveTimes(t *testing.T) {
+	vars := NewVars()
+
+	tests := []struct {
+		name  string
+		times []int
+		want  []int
+	}{
+		{"every press", []int{1000, 1100, 1210, 1220, 1500}, []int{1000, 1100, 1210, 1220, 1500}},
+		// The third note is at the same time as the second, so there is no
+		// interval to measure and no strain is recorded for it.
+		{"notes at the same time", []int{1000, 1100, 1100, 1300}, []int{1000, 1100, 1300}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := curveTimes(ProcessCurves(circlesAt(tc.times...), osu.NM, vars).Agility)
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("times = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestAgilityCurveWithSpeedMods(t *testing.T) {
+	bm := circlesAt(1000, 1100, 1210, 1220, 1500)
+	vars := NewVars()
+
+	for _, mods := range []osu.Mod{osu.NM, osu.DT, osu.HT, osu.HD | osu.HR} {
+		t.Run(mods.String(), func(t *testing.T) {
+			speed := modsSpeed(mods)
+
+			var want []int
+			for _, original := range []int{1000, 1100, 1210, 1220, 1500} {
+				want = append(want, int(math.Ceil(float64(original)/speed)))
+			}
+			if got := curveTimes(ProcessCurves(bm, mods, vars).Agility); !reflect.DeepEqual(got, want) {
+				t.Errorf("times = %v, want %v", got, want)
+			}
+		})
+	}
+}
+
+// The curve is the strains on another scale: it must not reverse their order,
+// keep their zeros, and have a point for every strain.
+func TestAgilityCurveKeepsTheShapeOfTheStrains(t *testing.T) {
+	bm := curvesTestBeatmap(t)
+	vars := NewVars()
+
+	for _, mods := range DefaultModCombinations() {
+		md := NewMapData(ApplyMods(bm, mods), mods)
+		md.prepare()
+		md.calculateAimStrains(vars)
+		curve := md.agilityCurve(vars)
+
+		if len(curve) != len(md.AimStrains) || len(md.AimStrainTimes) != len(md.AimStrains) {
+			t.Fatalf("%s: %d points, %d times for %d strains", mods, len(curve), len(md.AimStrainTimes), len(md.AimStrains))
+		}
+
+		for i, strain := range md.AimStrains {
+			if curve[i].Time != md.AimStrainTimes[i] {
+				t.Fatalf("%s: point %d has time %d, want %d", mods, i, curve[i].Time, md.AimStrainTimes[i])
+			}
+			if (strain == 0) != (curve[i].Value == 0) {
+				t.Fatalf("%s: point %d has strain %v and value %v", mods, i, strain, curve[i].Value)
+			}
+			if i == 0 {
+				continue
+			}
+
+			// Strains that differ in the last bit may end up with the same
+			// value, so the order may be lost but never reversed.
+			prev := md.AimStrains[i-1]
+			switch {
+			case strain > prev && curve[i].Value < curve[i-1].Value,
+				strain < prev && curve[i].Value > curve[i-1].Value,
+				strain == prev && curve[i].Value != curve[i-1].Value:
+				t.Fatalf("%s: strains %v -> %v became values %v -> %v", mods, prev, strain, curve[i-1].Value, curve[i].Value)
+			}
+		}
+	}
+}
+
+// The scale of the curve is fixed by two things: its maximum is the skill, and
+// the values follow the strains as a power law with the skill's exponent. This
+// is checked without going through the code that builds the curve.
+func TestAgilityCurveFollowsThePowerLawOfTheStrains(t *testing.T) {
+	bm := curvesTestBeatmap(t)
+	vars := NewVars()
+
+	for _, mods := range DefaultModCombinations() {
+		md := NewMapData(ApplyMods(bm, mods), mods)
+		md.prepare()
+		md.calculateAimStrains(vars)
+		curve := md.agilityCurve(vars)
+
+		maxStrain, peak := MaxFloatSliceValue(md.AimStrains), 0.0
+		for _, p := range curve {
+			peak = math.Max(peak, p.Value)
+		}
+		if maxStrain == 0 || peak == 0 {
+			t.Fatalf("%s: maxStrain = %v, peak = %v", mods, maxStrain, peak)
+		}
+
+		for i, strain := range md.AimStrains {
+			want := math.Pow(strain/maxStrain, vars.Agility.TotalPow)
+			got := curve[i].Value / peak
+			if math.Abs(got-want) > 1e-9*math.Max(1, want) {
+				t.Fatalf("%s: point %d has %v of the peak, want %v (strain %v of %v)", mods, i, got, want, strain, maxStrain)
+			}
+		}
+	}
+}
+
+func TestAgilityCurveIsOrderedAndFinite(t *testing.T) {
+	bm := curvesTestBeatmap(t)
+	vars := NewVars()
+
+	for _, mods := range DefaultModCombinations() {
+		curve := ProcessCurves(bm, mods, vars).Agility
+		for i, p := range curve {
+			if math.IsNaN(p.Value) || math.IsInf(p.Value, 0) || p.Value < 0 {
+				t.Fatalf("%s: point %d has value %v", mods, i, p.Value)
+			}
+			if i > 0 && p.Time < curve[i-1].Time {
+				t.Fatalf("%s: point %d at %d precedes point %d at %d", mods, i, p.Time, i-1, curve[i-1].Time)
+			}
+		}
+	}
+}
+
+// Without a strain peak (here: two notes) the skill is 0, and so is the curve.
+func TestAgilityCurveWithoutPeaks(t *testing.T) {
+	curve := ProcessCurves(circlesAt(1000, 1100), osu.NM, NewVars()).Agility
+
+	if len(curve) != 2 {
+		t.Fatalf("curve = %v, want 2 points", curve)
+	}
+	for _, p := range curve {
+		if p.Value != 0 {
+			t.Errorf("curve = %v, want all zeros", curve)
+		}
+	}
+}
