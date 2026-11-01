@@ -12,6 +12,7 @@ import (
 	"github.com/compico/go-osu/internal/http/view"
 	"github.com/compico/go-osu/internal/realtime"
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/cors"
 	"github.com/gofiber/fiber/v3/middleware/static"
 )
 
@@ -82,6 +83,7 @@ func (s *Server) RegisterRoutes(
 	osuGetBackgroundHandler *osuapi.OsuGetBackgroundHandler,
 	osuQueueAdjacentHandler *osuapi.OsuQueueAdjacentHandler,
 	osuSongsSearchHandler *osuapi.OsuSongsSearchHandler,
+	osuStrainsHandler *osuapi.OsuStrainsHandler,
 ) {
 	s.apiRouter = s.app.Group("/api")
 
@@ -95,6 +97,14 @@ func (s *Server) RegisterRoutes(
 	s.apiRouter.Get("/osu/songs/:difficulty_id<int>/track", osuTrackStreamHandler.Handle)
 	s.apiRouter.Get("/osu/queue/adjacent", osuQueueAdjacentHandler.Handle)
 	s.apiRouter.Get("/osu/songs/search", osuSongsSearchHandler.Handle)
+
+	// Read-only data of the player's own library on a loopback address; open to
+	// any origin so that a tosu overlay (served from tosu's own port) can fetch
+	// it.
+	s.apiRouter.Get("/osu/songs/:difficulty_id<int>/strains",
+		cors.New(), // the default config allows every origin
+		osuStrainsHandler.Handle,
+	)
 
 	s.apiRouter.Get("/osu/bg/:beatmap_id<int>.jpg", osuGetBackgroundHandler.Handle)
 	s.app.Get("/ws", rt.Handler())
