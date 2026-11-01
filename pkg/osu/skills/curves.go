@@ -31,6 +31,11 @@ type Curves struct {
 	Agility  []StrainPoint
 	Reading  []StrainPoint
 	Reaction []StrainPoint
+
+	// Precision follows the agility curve and Accuracy the stamina curve: they
+	// are functions of those skills, so they have the same points.
+	Precision []StrainPoint
+	Accuracy  []StrainPoint
 }
 
 // ProcessCurves calculates the difficulty curves of a beatmap for the given
@@ -63,6 +68,9 @@ func ProcessCurves(bm *osu.Beatmap, mods osu.Mod, vars *Vars) *Curves {
 	curves.Reading = md.readingCurve(vars)
 
 	curves.Reaction = md.reactionCurve(vars, md.HasMod(osu.HD))
+
+	curves.Precision = md.precisionCurve(curves.Agility, vars)
+	curves.Accuracy = md.accuracyCurve(curves.Stamina, vars)
 
 	return curves
 }
@@ -178,6 +186,36 @@ func (md *MapData) reactionCurve(vars *Vars, hidden bool) []StrainPoint {
 			scaled = value / maxValue * skill
 		}
 		points[i] = StrainPoint{Time: int(md.TargetPoints[i].Time), Value: scaled}
+	}
+	return points
+}
+
+// precisionCurve applies the precision formula to every point of the agility
+// curve. Precision grows with agility, so the curve's maximum is exactly
+// Skills.Precision (the agility curve's maximum is Skills.Agility).
+func (md *MapData) precisionCurve(agility []StrainPoint, vars *Vars) []StrainPoint {
+	points := make([]StrainPoint, len(agility))
+	for i, p := range agility {
+		points[i] = StrainPoint{
+			Time:  p.Time,
+			Value: precisionFromAgility(p.Value, md.Map.CircleSize, vars),
+		}
+	}
+	return points
+}
+
+// accuracyCurve applies the accuracy formula to every point of the stamina
+// curve. Accuracy grows with stamina, so the curve's maximum is exactly
+// Skills.Accuracy (the stamina curve's maximum is Skills.Stamina).
+func (md *MapData) accuracyCurve(stamina []StrainPoint, vars *Vars) []StrainPoint {
+	ssUr := md.ssUr()
+
+	points := make([]StrainPoint, len(stamina))
+	for i, p := range stamina {
+		points[i] = StrainPoint{
+			Time:  p.Time,
+			Value: accuracyFromStamina(p.Value, ssUr, vars),
+		}
 	}
 	return points
 }

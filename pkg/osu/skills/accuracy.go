@@ -14,6 +14,12 @@ func CalculateAccuracy(md *MapData, vars *Vars) {
 }
 
 func (md *MapData) calculateAccuracy(vars *Vars) {
+	ssUr := md.ssUr()
+	md.Skills.Accuracy = accuracyFromStamina(md.Skills.Stamina, ssUr, vars)
+}
+
+// ssUr is the unstable rate needed to SS the map, with speed mods applied.
+func (md *MapData) ssUr() float64 {
 	// Считаем только circles (Normal hit objects, не Sliders)
 	circles := 0.0
 	for _, obj := range md.Map.HitObjects {
@@ -34,14 +40,21 @@ func (md *MapData) calculateAccuracy(vars *Vars) {
 		ssUr /= 0.75
 	}
 
+	return ssUr
+}
+
+// accuracyFromStamina is the accuracy skill for a stamina value and the map's
+// SS_UR. It grows with stamina, so applying it to every point of the stamina
+// curve gives a curve whose peak equals the skill.
+func accuracyFromStamina(stamina, ssUr float64, vars *Vars) float64 {
 	// accuracy = stamina^VerScale / SS_UR
 	verScale := vars.Accuracy.VerScale
-	accuracy := math.Pow(md.Skills.Stamina, verScale) / float64(ssUr)
+	accuracy := math.Pow(stamina, verScale) / ssUr
 
 	// Применяем финальный множитель
 	totalMult := vars.Accuracy.TotalMult
 	totalPow := vars.Accuracy.TotalPow
-	md.Skills.Accuracy = totalMult * math.Pow(accuracy, totalPow)
+	return totalMult * math.Pow(accuracy, totalPow)
 }
 
 // odToMs converts OD value to milliseconds.
