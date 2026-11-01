@@ -132,7 +132,12 @@ type MapData struct {
 	// Deprecated: ProcessBeatmap no longer calculates these unused metrics.
 	Distances  []float64
 	AimStrains []float64
-	AimPoints  []AimPoint
+	// AimStrainTimes[i] is the time of the aim point AimStrains[i] belongs to.
+	// calculateAimStrains skips points that share a time with the previous
+	// one, so AimStrains can be shorter than AimPoints and its indexes do not
+	// line up with it.
+	AimStrainTimes []int
+	AimPoints      []AimPoint
 
 	// Reading
 	AngleBonuses   []float64

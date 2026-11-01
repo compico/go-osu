@@ -28,6 +28,7 @@ type Curves struct {
 	Speed float64
 
 	Stamina []StrainPoint
+	Agility []StrainPoint
 }
 
 // ProcessCurves calculates the difficulty curves of a beatmap for the given
@@ -53,6 +54,9 @@ func ProcessCurves(bm *osu.Beatmap, mods osu.Mod, vars *Vars) *Curves {
 	md.calculateTapStrains(vars)
 	curves.Stamina = md.staminaCurve(vars)
 
+	md.calculateAimStrains(vars)
+	curves.Agility = md.agilityCurve(vars)
+
 	return curves
 }
 
@@ -76,6 +80,40 @@ func (md *MapData) staminaCurve(vars *Vars) []StrainPoint {
 		points[i] = StrainPoint{
 			Time:  md.TapStrainTimes[i],
 			Value: staminaScale(strain, vars),
+		}
+	}
+	return points
+}
+
+// agilityCurve returns the aim strain of every aim point on the agility scale.
+// Requires calculateAimStrains.
+//
+// The agility skill is not the strongest strain but a weighted sum of the
+// strain peaks, so applying the skill's formula to a single strain would put
+// the curve below the skill. Instead the strains are scaled by the factor that
+// turns the strongest of them into the skill's value. The shape is kept
+// (a value is proportional to its strain raised to Agility.TotalPow), and the
+// curve's maximum is exactly Skills.Agility.
+//
+// A map without strain peaks (a few notes, or strains that only rise) has an
+// agility of 0, and so has its curve.
+func (md *MapData) agilityCurve(vars *Vars) []StrainPoint {
+	maxStrain := MaxFloatSliceValue(md.AimStrains)
+	weighted := getWeightedValue2(getPeakVals(md.AimStrains), vars.Agility.Weighting)
+
+	points := make([]StrainPoint, len(md.AimStrains))
+	for i, strain := range md.AimStrains {
+		// For the strongest strain the ratio is exactly 1, which makes the
+		// maximum of the curve exactly the skill. All strains are 0 when
+		// maxStrain is, and so is the skill.
+		aggregated := 0.0
+		if maxStrain > 0 {
+			aggregated = weighted * (strain / maxStrain)
+		}
+
+		points[i] = StrainPoint{
+			Time:  md.AimStrainTimes[i],
+			Value: agilityScale(aggregated, vars),
 		}
 	}
 	return points

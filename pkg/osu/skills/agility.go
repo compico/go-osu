@@ -45,11 +45,13 @@ func (md *MapData) calculateAgility(vars *Vars) {
 		vars.Agility.TotalPow,
 	)
 
-	md.Skills.Agility = vars.Agility.TotalMult *
-		math.Pow(
-			md.Skills.Agility,
-			vars.Agility.TotalPow,
-		)
+	md.Skills.Agility = agilityScale(md.Skills.Agility, vars)
 
 	debugf("[AGILITY] final=%v\n", md.Skills.Agility)
+}
+
+// agilityScale applies the final transformation of the agility skill to an
+// aggregated strain.
+func agilityScale(strain float64, vars *Vars) float64 {
+	return vars.Agility.TotalMult * math.Pow(strain, vars.Agility.TotalPow)
 }
