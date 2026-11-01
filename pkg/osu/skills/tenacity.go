@@ -23,13 +23,19 @@ func (md *MapData) calculateTenacity(vars *Vars) {
 		return
 	}
 
+	md.Skills.Tenacity = tenacityOfStream(longestStream.Interval, longestStream.Length, vars)
+}
+
+// tenacityOfStream is the tenacity skill of a map whose longest stream has the
+// given press interval (ms) and length (notes).
+func tenacityOfStream(interval, length int, vars *Vars) float64 {
 	// intervalScaled = 1.0 / pow(interval, pow(interval, IntervalPow) * IntervalMult) * IntervalMult2
 	intervalPow := vars.Tenacity.IntervalPow
 	intervalMult := vars.Tenacity.IntervalMult
 	intervalMult2 := vars.Tenacity.IntervalMult2
 
-	exponent := math.Pow(float64(longestStream.Interval), intervalPow) * intervalMult
-	intervalScaled := 1.0 / math.Pow(float64(longestStream.Interval), exponent) * intervalMult2
+	exponent := math.Pow(float64(interval), intervalPow) * intervalMult
+	intervalScaled := 1.0 / math.Pow(float64(interval), exponent) * intervalMult2
 
 	debugf("[TENACITY] IntervalPow=%v IntervalMult=%v IntervalMult2=%v exponent=%v intervalScaled=%v\n",
 		intervalPow, intervalMult, intervalMult2, exponent, intervalScaled)
@@ -38,7 +44,7 @@ func (md *MapData) calculateTenacity(vars *Vars) {
 	lengthDivisor := vars.Tenacity.LengthDivisor
 	lengthMult := vars.Tenacity.LengthMult
 
-	lengthBase := lengthDivisor / float64(longestStream.Length)
+	lengthBase := lengthDivisor / float64(length)
 	lengthScaled := math.Pow(lengthBase, lengthBase*lengthMult)
 
 	debugf("[TENACITY] LengthDivisor=%v LengthMult=%v lengthBase=%v lengthScaled=%v\n",
@@ -52,9 +58,10 @@ func (md *MapData) calculateTenacity(vars *Vars) {
 	// Применяем финальный множитель
 	totalMult := vars.Tenacity.TotalMult
 	totalPow := vars.Tenacity.TotalPow
-	md.Skills.Tenacity = totalMult * math.Pow(tenacity, totalPow)
+	result := totalMult * math.Pow(tenacity, totalPow)
 
-	debugf("[TENACITY] TotalMult=%v TotalPow=%v final=%v\n", totalMult, totalPow, md.Skills.Tenacity)
+	debugf("[TENACITY] TotalMult=%v TotalPow=%v final=%v\n", totalMult, totalPow, result)
+	return result
 }
 
 // getLongestStream returns the first interval bucket, in ascending interval

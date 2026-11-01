@@ -842,3 +842,109 @@ func TestMemoryCurveWithOneObject(t *testing.T) {
 		t.Errorf("curve = %v, want empty", curves.Memory)
 	}
 }
+
+// streamsAt builds a map of streams: each has count presses `interval` ms apart,
+// starting at the given times.
+func streamsAt(interval, count int, starts ...int) []int {
+	var times []int
+	for _, start := range starts {
+		for k := 0; k < count; k++ {
+			times = append(times, start+interval*k)
+		}
+	}
+	return times
+}
+
+func TestTenacityCurveIsAStepCurveOfTheStreams(t *testing.T) {
+	vars := NewVars()
+	times := append(streamsAt(100, 10, 1000), streamsAt(80, 8, 5000)...)
+	curves := ProcessCurves(circlesAt(times...), osu.NM, vars)
+
+	// The streams (7+ presses at one interval) the map has: the last press of
+	// each is not counted in it by the skill's own stream detection.
+	slow := tenacityOfStream(100, 10, vars)
+	fast := tenacityOfStream(80, 8, vars)
+	want := []StrainPoint{
+		{999, 0}, {1000, slow}, {1800, slow}, {1801, 0},
+		{4999, 0}, {5000, fast}, {5480, fast}, {5481, 0},
+	}
+	if !reflect.DeepEqual(curves.Tenacity, want) {
+		t.Errorf("curve = %v\nwant    %v", curves.Tenacity, want)
+	}
+	// The skill comes from the fastest stream.
+	if skill := ProcessBeatmap(circlesAt(times...), osu.NM, vars).Skills.Tenacity; skill != fast {
+		t.Errorf("skill = %v, want %v", skill, fast)
+	}
+}
+
+func TestTenacityCurvePeakIsTheSkill(t *testing.T) {
+	bm := curvesTestBeatmap(t)
+	vars := NewVars()
+
+	for _, mods := range DefaultModCombinations() {
+		curve := ProcessCurves(bm, mods, vars).Tenacity
+		skill := ProcessBeatmap(bm, mods, vars).Skills.Tenacity
+
+		if skill == 0 || len(curve) == 0 {
+			t.Fatalf("%s: skill = %v, %d points", mods, skill, len(curve))
+		}
+		peak := math.Inf(-1)
+		for i, p := range curve {
+			peak = math.Max(peak, p.Value)
+			if math.IsNaN(p.Value) || math.IsInf(p.Value, 0) || p.Value < 0 {
+				t.Fatalf("%s: point %d has value %v", mods, i, p.Value)
+			}
+			if i > 0 && p.Time < curve[i-1].Time {
+				t.Fatalf("%s: point %d at %d precedes point %d at %d", mods, i, p.Time, i-1, curve[i-1].Time)
+			}
+		}
+		if peak != skill {
+			t.Errorf("%s: curve peak = %v, want the tenacity skill %v", mods, peak, skill)
+		}
+	}
+}
+
+// A slow but very long stream could be worth more than the fast stream the
+// skill is taken from; the curve must not go above the skill.
+func TestTenacityCurveNeverExceedsTheSkill(t *testing.T) {
+	vars := NewVars()
+	if tenacityOfStream(100, 80, vars) <= tenacityOfStream(80, 8, vars) {
+		t.Skip("the default variables do not make a slow stream worth more")
+	}
+	times := append(streamsAt(100, 80, 1000), streamsAt(80, 8, 20000)...)
+	curves := ProcessCurves(circlesAt(times...), osu.NM, vars)
+	skill := ProcessBeatmap(circlesAt(times...), osu.NM, vars).Skills.Tenacity
+
+	peak, atSlow := 0.0, 0.0
+	for _, p := range curves.Tenacity {
+		peak = math.Max(peak, p.Value)
+		if p.Time == 1000 {
+			atSlow = p.Value
+		}
+	}
+	if peak != skill || atSlow != skill {
+		t.Errorf("peak = %v, slow stream = %v, want both the skill %v", peak, atSlow, skill)
+	}
+}
+
+// Streams are only counted from 7 presses; a map without any has no curve.
+func TestTenacityCurveWithoutStreams(t *testing.T) {
+	curves := ProcessCurves(circlesAt(1000, 1100, 1200, 3000, 3100), osu.NM, NewVars())
+	if len(curves.Tenacity) != 0 {
+		t.Errorf("curve = %v, want empty", curves.Tenacity)
+	}
+}
+
+func TestTenacityCurveWithSpeedMods(t *testing.T) {
+	vars := NewVars()
+	times := streamsAt(100, 10, 1000)
+
+	for _, mods := range []osu.Mod{osu.DT, osu.HT} {
+		curve := ProcessCurves(circlesAt(times...), mods, vars).Tenacity
+		speed := modsSpeed(mods)
+		start := int(math.Ceil(1000 / speed))
+		if len(curve) != 4 || curve[1].Time != start {
+			t.Errorf("%s: curve = %v, want a plateau starting at %d", mods, curve, start)
+		}
+	}
+}
