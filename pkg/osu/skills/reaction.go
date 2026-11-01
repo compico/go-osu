@@ -98,13 +98,26 @@ func CalculateReaction(md *MapData, vars *Vars, hidden bool) {
 }
 
 func (md *MapData) calculateReaction(vars *Vars, hidden bool) {
+	md.Skills.Reaction = reactionSkill(md.reactionValues(vars, hidden), vars)
+}
+
+// reactionValues returns the reaction skill at every target point.
+func (md *MapData) reactionValues(vars *Vars, hidden bool) []float64 {
+	values := make([]float64, len(md.TargetPoints))
+	for i, tick := range md.TargetPoints {
+		values[i] = getReactionSkillAt(md.TargetPoints, tick, md.Map.HitObjects, md.Map.ApproachRate, md.Map.CircleSize, hidden, vars)
+	}
+	return values
+}
+
+// reactionSkill is the mean of the strongest value and a running average of
+// the values above half of the strongest one so far.
+func reactionSkill(values []float64, vars *Vars) float64 {
 	mx := 0.0
 	avg := 0.0
 	weight := vars.Reaction.AvgWeighting
 
-	for _, tick := range md.TargetPoints {
-		val := getReactionSkillAt(md.TargetPoints, tick, md.Map.HitObjects, md.Map.ApproachRate, md.Map.CircleSize, hidden, vars)
-
+	for _, val := range values {
 		if val > mx {
 			mx = val
 		}
@@ -113,5 +126,5 @@ func (md *MapData) calculateReaction(vars *Vars, hidden bool) {
 		}
 	}
 
-	md.Skills.Reaction = (mx + avg) / 2.0
+	return (mx + avg) / 2.0
 }

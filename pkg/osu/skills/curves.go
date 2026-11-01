@@ -27,9 +27,10 @@ type Curves struct {
 	// beatmap's own timeline.
 	Speed float64
 
-	Stamina []StrainPoint
-	Agility []StrainPoint
-	Reading []StrainPoint
+	Stamina  []StrainPoint
+	Agility  []StrainPoint
+	Reading  []StrainPoint
+	Reaction []StrainPoint
 }
 
 // ProcessCurves calculates the difficulty curves of a beatmap for the given
@@ -60,6 +61,8 @@ func ProcessCurves(bm *osu.Beatmap, mods osu.Mod, vars *Vars) *Curves {
 
 	md.calculateReading(vars, md.HasMod(osu.HD))
 	curves.Reading = md.readingCurve(vars)
+
+	curves.Reaction = md.reactionCurve(vars, md.HasMod(osu.HD))
 
 	return curves
 }
@@ -148,6 +151,33 @@ func (md *MapData) readingCurve(vars *Vars) []StrainPoint {
 			Time:  md.ReadingPoints[i].Time,
 			Value: readingScale(aggregated, vars),
 		}
+	}
+	return points
+}
+
+// reactionCurve returns the reaction skill at every target point (circle start
+// or slider tick). Requires prepare.
+//
+// The reaction skill is (max + avg) / 2 of these values, where avg is a
+// running average that is always below the maximum. The values are already on
+// the skill's scale, so they are only multiplied by skill/max (the curve is
+// linear in them, unlike agility's power law): the curve's maximum is exactly
+// Skills.Reaction. A map whose values are all 0 has a reaction of 0, and so
+// has its curve.
+func (md *MapData) reactionCurve(vars *Vars, hidden bool) []StrainPoint {
+	values := md.reactionValues(vars, hidden)
+	skill := reactionSkill(values, vars)
+	maxValue := MaxFloatSliceValue(values)
+
+	points := make([]StrainPoint, len(values))
+	for i, value := range values {
+		// The ratio is exactly 1 for the maximum, which makes the curve's
+		// maximum exactly the skill.
+		scaled := 0.0
+		if maxValue > 0 {
+			scaled = value / maxValue * skill
+		}
+		points[i] = StrainPoint{Time: int(md.TargetPoints[i].Time), Value: scaled}
 	}
 	return points
 }
