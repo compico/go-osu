@@ -141,7 +141,13 @@ type MapData struct {
 
 	// Tapping
 	PressIntervals []int
-	TapStrains     []float64
+	// PressTimes[i] is the time of the press that ends PressIntervals[i].
+	PressTimes []int
+	TapStrains []float64
+	// TapStrainTimes[i] is the time of the press TapStrains[i] belongs to.
+	// TapStrains skips very short intervals, so it can be shorter than
+	// PressIntervals and its indexes do not line up with it.
+	TapStrainTimes []int
 
 	// Tenacity / Stamina
 	Streams map[int][][]int
