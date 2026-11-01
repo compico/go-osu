@@ -16,6 +16,8 @@ func CalculateMemory(md *MapData, vars *Vars) float64 {
 
 func (md *MapData) calculateMemory(vars *Vars) float64 {
 	totalMemPoints := 0.0
+	md.MemoryTotals = make([]float64, 0, len(md.Map.HitObjects))
+	md.MemoryTimes = make([]int, 0, len(md.Map.HitObjects))
 	old := md.Map.HitObjects[0]
 	combo := 0
 
@@ -121,15 +123,23 @@ func (md *MapData) calculateMemory(vars *Vars) float64 {
 
 		old = ho
 		totalMemPoints += memPoints
+		md.MemoryTotals = append(md.MemoryTotals, totalMemPoints)
+		md.MemoryTimes = append(md.MemoryTimes, ho.Time)
 
 		debugf("[MEMORY] i=%v combo=%v observableDist=%v sliderBonus=%v observable=%v helpPixels=%v memPoints=%v totalMemPoints=%v hitObjectType=%v\n",
 			i, combo, observableDist, sliderBonusFactor, map[bool]int{false: 0, true: 1}[observable], helpPixels, memPoints, totalMemPoints, ho.Type)
 	}
 
-	md.Skills.Memory = vars.Memory.TotalMult *
-		math.Pow(totalMemPoints, vars.Memory.TotalPow)
+	md.Skills.Memory = memoryScale(totalMemPoints, vars)
 
 	return md.Skills.Memory
+}
+
+// memoryScale converts a total of memory points to the memory skill scale.
+// The skill is the scale of the total over the whole map, so the same
+// conversion applied to the running total gives a curve that ends at the skill.
+func memoryScale(total float64, vars *Vars) float64 {
+	return vars.Memory.TotalMult * math.Pow(total, vars.Memory.TotalPow)
 }
 
 func IsObservableFrom(obj osu.HitObject, distance int, fromPos vector2d.Vector2dd) bool {
