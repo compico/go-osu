@@ -29,6 +29,7 @@ type Curves struct {
 
 	Stamina []StrainPoint
 	Agility []StrainPoint
+	Reading []StrainPoint
 }
 
 // ProcessCurves calculates the difficulty curves of a beatmap for the given
@@ -56,6 +57,9 @@ func ProcessCurves(bm *osu.Beatmap, mods osu.Mod, vars *Vars) *Curves {
 
 	md.calculateAimStrains(vars)
 	curves.Agility = md.agilityCurve(vars)
+
+	md.calculateReading(vars, md.HasMod(osu.HD))
+	curves.Reading = md.readingCurve(vars)
 
 	return curves
 }
@@ -114,6 +118,35 @@ func (md *MapData) agilityCurve(vars *Vars) []StrainPoint {
 		points[i] = StrainPoint{
 			Time:  md.AimStrainTimes[i],
 			Value: agilityScale(aggregated, vars),
+		}
+	}
+	return points
+}
+
+// readingCurve returns the reading strain of every reading point on the
+// reading scale. Requires calculateReading.
+//
+// Reading is a weighted sum of strain peaks, like agility, so the curve is
+// built the same way: the strains are scaled by the factor that turns the
+// strongest of them into the skill's value, keeping the shape (a value is
+// proportional to its strain raised to Reading.TotalPow). The curve's maximum
+// is exactly Skills.Reading.
+//
+// There is a strain for every reading point, so ReadingPoints gives the times.
+func (md *MapData) readingCurve(vars *Vars) []StrainPoint {
+	maxStrain := MaxFloatSliceValue(md.ReadingStrains)
+	weighted := getWeightedValue2(getPeakVals(md.ReadingStrains), vars.Reading.Weighting)
+
+	points := make([]StrainPoint, len(md.ReadingStrains))
+	for i, strain := range md.ReadingStrains {
+		aggregated := 0.0
+		if maxStrain > 0 {
+			aggregated = weighted * (strain / maxStrain)
+		}
+
+		points[i] = StrainPoint{
+			Time:  md.ReadingPoints[i].Time,
+			Value: readingScale(aggregated, vars),
 		}
 	}
 	return points

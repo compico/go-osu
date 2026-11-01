@@ -91,7 +91,12 @@ func (md *MapData) calculateReading(vars *Vars, hidden bool) {
 	topWeights := getPeakVals(md.ReadingStrains)
 
 	md.Skills.Reading = getWeightedValue2(topWeights, vars.Reading.Weighting)
-	md.Skills.Reading = vars.Reading.TotalMult * math.Pow(md.Skills.Reading, vars.Reading.TotalPow)
+	md.Skills.Reading = readingScale(md.Skills.Reading, vars)
+}
+
+// readingScale converts the weighted strain peaks to the reading skill scale.
+func readingScale(weighted float64, vars *Vars) float64 {
+	return vars.Reading.TotalMult * math.Pow(weighted, vars.Reading.TotalPow)
 }
 
 // evaluateDifficultyOf ports reading.cpp's EvaluateDifficultyOf.
