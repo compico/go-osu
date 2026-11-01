@@ -1,6 +1,10 @@
 package skills
 
-import "github.com/compico/go-osu/pkg/osu"
+import (
+	"sort"
+
+	"github.com/compico/go-osu/pkg/osu"
+)
 
 // StrainPoint is one point of a skill's difficulty curve.
 type StrainPoint struct {
@@ -41,6 +45,10 @@ type Curves struct {
 	// other curves it is cumulative: memory is a sum over the whole map, so the
 	// curve rises as memory points accumulate and ends at Skills.Memory.
 	Memory []StrainPoint
+
+	// Tenacity is a step curve: a plateau over the time of every stream (a run
+	// of more than 6 presses at one interval) and 0 between streams.
+	Tenacity []StrainPoint
 }
 
 // ProcessCurves calculates the difficulty curves of a beatmap for the given
@@ -76,6 +84,9 @@ func ProcessCurves(bm *osu.Beatmap, mods osu.Mod, vars *Vars) *Curves {
 
 	curves.Precision = md.precisionCurve(curves.Agility, vars)
 	curves.Accuracy = md.accuracyCurve(curves.Stamina, vars)
+
+	md.calculateTenacity(vars)
+	curves.Tenacity = md.tenacityCurve(vars)
 
 	if md.HasMod(osu.FL) {
 		md.calculateMemory(vars)
@@ -240,6 +251,54 @@ func (md *MapData) memoryCurve(vars *Vars) []StrainPoint {
 	points := make([]StrainPoint, len(md.MemoryTotals))
 	for i, total := range md.MemoryTotals {
 		points[i] = StrainPoint{Time: md.MemoryTimes[i], Value: memoryScale(total, vars)}
+	}
+	return points
+}
+
+// tenacityCurve returns a step curve of the streams of the map. Requires
+// calculateTenacity.
+//
+// The tenacity skill comes from one stream only: the longest one of the fastest
+// interval that has streams. The curve shows every stream: over its time (first
+// to last press) it is the tenacity the stream would give on its own, never
+// above the skill, so the plateau of the skill's own stream is exactly
+// Skills.Tenacity and is the maximum of the curve. Between streams it is 0; the
+// steps are one millisecond wide (but never go back in time). A map without
+// streams has tenacity 0 and an empty curve.
+func (md *MapData) tenacityCurve(vars *Vars) []StrainPoint {
+	type plateau struct {
+		start, end int
+		value      float64
+	}
+	var plateaus []plateau
+	skill := md.Skills.Tenacity
+
+	for interval, streams := range md.Streams {
+		for _, stream := range streams {
+			// The skill counts a stream's length as one more than its presses.
+			value := tenacityOfStream(interval, len(stream)+1, vars)
+			if value > skill {
+				value = skill
+			}
+			plateaus = append(plateaus, plateau{stream[0], stream[len(stream)-1], value})
+		}
+	}
+	// The map iteration order is random; the streams do not overlap, so the
+	// start decides.
+	sort.Slice(plateaus, func(i, j int) bool { return plateaus[i].start < plateaus[j].start })
+
+	var points []StrainPoint
+	add := func(time int, value float64) {
+		if n := len(points); n > 0 && time < points[n-1].Time {
+			time = points[n-1].Time
+		}
+		points = append(points, StrainPoint{Time: time, Value: value})
+	}
+	for _, p := range plateaus {
+		add(p.start-1, 0)
+		add(p.start, p.value)
+		add(p.end, p.value)
+		add(p.end+1, 0)
 	}
 	return points
 }
