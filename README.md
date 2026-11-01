@@ -131,12 +131,16 @@ The config file path can be overridden with the `--config`/`-c` flag or the `APP
 | `make build-prod`     | Builds the frontend, then the production binary                            |
 | `make frontend-build` | Builds only the frontend (`npm run build`)                                 |
 | `make clean`          | Removes `bin/` and `frontend/dist/`                                        |
+| `make fetch-refs`     | Downloads the beatmaps of the skills reference test into `pkg/osu/skills/test_data` |
+| `make test-reference` | Downloads them and runs the reference test, failing if a map is missing    |
 
 ## Skills — beatmap difficulty analysis
 
 The `pkg/osu/skills` package contains beatmap difficulty analysis algorithms ported from the [osuSkills](https://github.com/Kert/osuSkills) project, with the original author's permission ([Kert/osuSkills#5](https://github.com/Kert/osuSkills/issues/5)).
 
 The algorithms compute a set of skill-related metrics for a beatmap: Stamina, Tenacity, Agility, Accuracy, Precision, Memory, Reaction, and other derived values.
+
+The values are checked against the original implementation on real beatmaps. The `.osu` files are not stored in the repository: `make fetch-refs` downloads them (the IDs are listed in `pkg/osu/skills/reference_maps.json`) into the git-ignored `pkg/osu/skills/test_data`, after which `go test ./pkg/osu/skills` and the pre-commit hook run the comparison. CI does the same in the `Reference values` job.
 
 This is a **port** from another language. The test suite compares output against the original implementation across a large set of beatmaps, and results now match it almost exactly — remaining differences, where they occur, are negligible and come down to implementation details rather than to the methodology itself. The algorithms may still be refined further as edge cases are found.
 

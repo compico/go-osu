@@ -155,19 +155,30 @@ type SkillsReference struct {
 	Skills    Skills
 }
 
+// referenceRequired reports whether missing reference maps must fail
+// TestSkillsValues_CompareWithReference instead of skipping it. CI sets
+// REQUIRE_REFERENCE so that the check cannot pass by silently not running.
+func referenceRequired() bool {
+	return os.Getenv("REQUIRE_REFERENCE") != ""
+}
+
 func TestSkillsValues_CompareWithReference(t *testing.T) {
 	files, err := getOsuFiles()
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(files) == 0 {
-		t.Skip("no .osu files found in ./test_data; reference comparison not run")
+		if referenceRequired() {
+			t.Fatal("REQUIRE_REFERENCE is set, but ./test_data has no .osu files; run `make fetch-refs`")
+		}
+		t.Skip("no .osu files found in ./test_data; reference comparison not run (`make fetch-refs` downloads them)")
 	}
 
 	vars := NewVars()
 
 	const epsilon = 0.001
 	comparisons := 0
+	matched := make(map[int]bool)
 
 	check := func(t *testing.T, name string, got, want float64) {
 		t.Helper()
@@ -202,6 +213,7 @@ func TestSkillsValues_CompareWithReference(t *testing.T) {
 				continue
 			}
 			comparisons++
+			matched[ref.BeatmapID] = true
 
 			t.Run(fmt.Sprintf("%d_mods_%v", ref.BeatmapID, ref.Mods.String()), func(t *testing.T) {
 				result := ProcessBeatmap(&bm, ref.Mods, vars)
@@ -242,5 +254,15 @@ func TestSkillsValues_CompareWithReference(t *testing.T) {
 	}
 	if comparisons == 0 {
 		t.Fatal("no osuSkills reference entries matched the .osu fixtures")
+	}
+
+	// Without this a run with a single map would pass although the other
+	// references were never compared.
+	if referenceRequired() {
+		for _, id := range referenceBeatmapIDs() {
+			if !matched[id] {
+				t.Errorf("no .osu file for reference beatmap %d in ./test_data; run `make fetch-refs`", id)
+			}
+		}
 	}
 }

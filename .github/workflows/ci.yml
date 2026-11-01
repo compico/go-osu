@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+# A new push to a pull request makes the run for the previous one pointless.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go:
+    name: Go
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # frontend/embed.go embeds frontend/dist, which git ignores. The Go
+      # packages only need the directory to exist; the frontend job builds it
+      # for real.
+      - name: Create a placeholder for the embedded frontend
+        run: |
+          mkdir -p frontend/dist
+          touch frontend/dist/.placeholder
+
+      - name: Check formatting
+        run: |
+          unformatted="$(git ls-files '*.go' | xargs gofmt -l)"
+          if [ -n "$unformatted" ]; then
+            echo "These files are not gofmt-formatted:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      # The reference test skips itself here because there are no .osu files;
+      # the reference job below runs it for real.
+      - name: Test
+        run: go test ./... -count=1
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "26"
+
+      - name: Install frontend deps
+        run: npm ci
+
+      # vue-tsc type-checks, then vite builds.
+      - name: Build frontend
+        run: npm run build
+
+  # Compares the skills with the values of the original implementation on real
+  # beatmaps. The maps are not in the repository; they are downloaded from a
+  # mirror by internal/tools/fetchrefs and cached, so the mirror is only asked
+  # when the list in reference_maps.json changes. This is a separate job so
+  # that an outage of the mirror does not hide the results of the other two.
+  reference:
+    name: Reference values
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Cache reference maps
+        uses: actions/cache@v4
+        with:
+          path: pkg/osu/skills/test_data
+          key: reference-maps-${{ hashFiles('pkg/osu/skills/reference_maps.json') }}
+
+      - name: Download reference maps
+        run: make fetch-refs
+
+      - name: Compare with the reference values
+        run: REQUIRE_REFERENCE=1 go test ./pkg/osu/skills -run TestSkillsValues_CompareWithReference -count=1 -v

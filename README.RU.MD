@@ -130,6 +130,8 @@ make build-prod
 | `make build-prod`     | Собирает фронтенд, затем прод-бинарь                                         |
 | `make frontend-build` | Только сборка фронтенда (`npm run build`)                                    |
 | `make clean`          | Удаляет `bin/` и `frontend/dist/`                                            |
+| `make fetch-refs`     | Скачивает карты для reference-теста skills в `pkg/osu/skills/test_data`      |
+| `make test-reference` | Скачивает их и запускает reference-тест; падает, если карты не хватает       |
 
 ## Skills — анализ сложности бимапов
 
@@ -138,6 +140,8 @@ make build-prod
 Алгоритмы вычисляют набор метрик по бимапу: Stamina, Tenacity, Agility, Accuracy, Precision, Memory, Reaction и производные от них значения.
 
 Это **порт** с другого языка. Тесты сравнивают результат с оригинальной реализацией на большом наборе карт, и на данный момент значения совпадают практически идеально — оставшиеся расхождения, если они есть, минимальны и связаны с деталями реализации, а не с различиями в методологии. Алгоритмы всё ещё могут дорабатываться по мере обнаружения edge-кейсов.
+
+Файлы `.osu` для этого сравнения в репозитории не хранятся: `make fetch-refs` скачивает их (ID перечислены в `pkg/osu/skills/reference_maps.json`) в игнорируемую git'ом папку `pkg/osu/skills/test_data`, после чего сравнение выполняют `go test ./pkg/osu/skills` и pre-commit хук. В CI то же самое делает job `Reference values`.
 
 ## Лицензия
 
