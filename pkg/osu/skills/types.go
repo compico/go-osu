@@ -160,6 +160,12 @@ type MapData struct {
 
 	TargetPoints []TargetPoint
 
+	// Memory: MemoryTotals[i] is the total of memory points up to and
+	// including the hit object at MemoryTimes[i]. Spinners and the first hit
+	// object have no entry. Only filled by calculateMemory.
+	MemoryTotals []float64
+	MemoryTimes  []int
+
 	Skills Skills
 
 	BpmMin float64

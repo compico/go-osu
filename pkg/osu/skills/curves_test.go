@@ -756,3 +756,89 @@ func TestAccuracyCurveWithoutCircles(t *testing.T) {
 		}
 	}
 }
+
+// Memory only exists with FL; the curve ends at the skill and never falls.
+func TestMemoryCurveEndsAtTheSkill(t *testing.T) {
+	bm := curvesTestBeatmap(t)
+	vars := NewVars()
+
+	withFL := 0
+	for _, mods := range DefaultModCombinations() {
+		curve := ProcessCurves(bm, mods, vars).Memory
+
+		if mods&osu.FL == 0 {
+			if len(curve) != 0 {
+				t.Errorf("%s: memory curve without FL: %v", mods, curve)
+			}
+			continue
+		}
+		withFL++
+
+		skill := ProcessBeatmap(bm, mods, vars).Skills.Memory
+		if skill == 0 || len(curve) == 0 {
+			t.Fatalf("%s: skill = %v, %d points", mods, skill, len(curve))
+		}
+		if last := curve[len(curve)-1].Value; last != skill {
+			t.Errorf("%s: curve ends at %v, want the memory skill %v", mods, last, skill)
+		}
+		for i, p := range curve {
+			if math.IsNaN(p.Value) || math.IsInf(p.Value, 0) || p.Value < 0 {
+				t.Fatalf("%s: point %d has value %v", mods, i, p.Value)
+			}
+			if i > 0 && (p.Time < curve[i-1].Time || p.Value < curve[i-1].Value) {
+				t.Fatalf("%s: point %d (%d, %v) falls or goes back in time after (%d, %v)", mods, i, p.Time, p.Value, curve[i-1].Time, curve[i-1].Value)
+			}
+		}
+	}
+	if withFL == 0 {
+		t.Fatal("no mod combination with FL")
+	}
+}
+
+// Spinners and the first object have no point; every other object has one.
+func TestMemoryCurveTimes(t *testing.T) {
+	bm := circlesAt(1000, 1500, 2000, 2500)
+	bm.HitObjects[2].Type = osu.HitSpinner
+	vars := NewVars()
+
+	for _, mods := range []osu.Mod{osu.FL, osu.FL | osu.DT, osu.FL | osu.HT} {
+		speed := modsSpeed(mods)
+		var want []int
+		for _, original := range []int{1500, 2500} {
+			want = append(want, int(math.Ceil(float64(original)/speed)))
+		}
+		if got := curveTimes(ProcessCurves(bm, mods, vars).Memory); !reflect.DeepEqual(got, want) {
+			t.Errorf("%s: times = %v, want %v", mods, got, want)
+		}
+	}
+}
+
+func TestMemoryCurveIsTheScaleOfTheRunningTotal(t *testing.T) {
+	bm := curvesTestBeatmap(t)
+	vars := NewVars()
+	md := NewMapData(ApplyMods(bm, osu.FL), osu.FL)
+	md.prepare()
+	md.calculateMemory(vars)
+	curve := md.memoryCurve(vars)
+
+	if len(curve) != len(md.MemoryTotals) {
+		t.Fatalf("%d points for %d totals", len(curve), len(md.MemoryTotals))
+	}
+	for i, total := range md.MemoryTotals {
+		want := vars.Memory.TotalMult * math.Pow(total, vars.Memory.TotalPow)
+		if curve[i].Value != want {
+			t.Fatalf("point %d = %v, want %v", i, curve[i].Value, want)
+		}
+	}
+	if md.MemoryTotals[len(md.MemoryTotals)-1] == 0 {
+		t.Fatal("the test map has no memory points")
+	}
+}
+
+// One object: no memory points, no curve, no panic.
+func TestMemoryCurveWithOneObject(t *testing.T) {
+	curves := ProcessCurves(circlesAt(1000), osu.FL, NewVars())
+	if len(curves.Memory) != 0 {
+		t.Errorf("curve = %v, want empty", curves.Memory)
+	}
+}

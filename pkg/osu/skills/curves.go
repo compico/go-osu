@@ -36,6 +36,11 @@ type Curves struct {
 	// are functions of those skills, so they have the same points.
 	Precision []StrainPoint
 	Accuracy  []StrainPoint
+
+	// Memory is only calculated with FL, otherwise it is empty. Unlike the
+	// other curves it is cumulative: memory is a sum over the whole map, so the
+	// curve rises as memory points accumulate and ends at Skills.Memory.
+	Memory []StrainPoint
 }
 
 // ProcessCurves calculates the difficulty curves of a beatmap for the given
@@ -71,6 +76,11 @@ func ProcessCurves(bm *osu.Beatmap, mods osu.Mod, vars *Vars) *Curves {
 
 	curves.Precision = md.precisionCurve(curves.Agility, vars)
 	curves.Accuracy = md.accuracyCurve(curves.Stamina, vars)
+
+	if md.HasMod(osu.FL) {
+		md.calculateMemory(vars)
+		curves.Memory = md.memoryCurve(vars)
+	}
 
 	return curves
 }
@@ -216,6 +226,20 @@ func (md *MapData) accuracyCurve(stamina []StrainPoint, vars *Vars) []StrainPoin
 			Time:  p.Time,
 			Value: accuracyFromStamina(p.Value, ssUr, vars),
 		}
+	}
+	return points
+}
+
+// memoryCurve returns the running total of memory points on the memory scale.
+// Requires calculateMemory.
+//
+// Memory is the scaled total of the points of every hit object, so the curve is
+// that scale applied to the running total. It never falls, and its last point
+// is exactly Skills.Memory (the total is summed in the same order).
+func (md *MapData) memoryCurve(vars *Vars) []StrainPoint {
+	points := make([]StrainPoint, len(md.MemoryTotals))
+	for i, total := range md.MemoryTotals {
+		points[i] = StrainPoint{Time: md.MemoryTimes[i], Value: memoryScale(total, vars)}
 	}
 	return points
 }
