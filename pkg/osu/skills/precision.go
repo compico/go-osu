@@ -6,26 +6,31 @@ import (
 
 // CalculatePrecision портирует precision.cpp's CalculatePrecision.
 // Рассчитывает точность на основе agility и размера круга.
-// Требует предварительного расчёта agility в md.Skills.Agility.
+// Требует предварительного расчёта agility в agility.
 func CalculatePrecision(md *MapData, vars *Vars) {
 	md.calculatePrecision(vars)
 }
 
 func (md *MapData) calculatePrecision(vars *Vars) {
-	cs := md.Map.CircleSize
+	md.Skills.Precision = precisionFromAgility(md.Skills.Agility, md.Map.CircleSize, vars)
+}
 
-	debugf("[PRECISION] agilityAtCallTime=%v cs=%v\n", md.Skills.Agility, cs)
+// precisionFromAgility is the precision skill of a map with the given agility
+// and circle size. It grows with agility, so applying it to every point of the
+// agility curve gives a curve whose peak equals the skill.
+func precisionFromAgility(agility, cs float64, vars *Vars) float64 {
+	debugf("[PRECISION] agilityAtCallTime=%v cs=%v\n", agility, cs)
 
 	// Масштабируем agility
 	var scaledAgility float64
 	agilityLimit := vars.Precision.AgilityLimit
-	if md.Skills.Agility > agilityLimit {
+	if agility > agilityLimit {
 		scaledAgility = 1.0
 	}
 
 	agilityPow := vars.Precision.AgilityPow
 	agilitySubtract := vars.Precision.AgilitySubtract
-	scaledAgility = math.Pow(md.Skills.Agility+1, agilityPow) - agilitySubtract
+	scaledAgility = math.Pow(agility+1, agilityPow) - agilitySubtract
 
 	debugf("[PRECISION] agilityLimit=%v agilityPow=%v agilitySubtract=%v scaledAgility=%v\n",
 		agilityLimit, agilityPow, agilitySubtract, scaledAgility)
@@ -39,7 +44,8 @@ func (md *MapData) calculatePrecision(vars *Vars) {
 	totalMult := vars.Precision.TotalMult
 	totalPow := vars.Precision.TotalPow
 
-	md.Skills.Precision = totalMult * math.Pow(precision, totalPow)
+	result := totalMult * math.Pow(precision, totalPow)
 
-	debugf("[PRECISION] totalMult=%v totalPow=%v final=%v\n", totalMult, totalPow, md.Skills.Precision)
+	debugf("[PRECISION] totalMult=%v totalPow=%v final=%v\n", totalMult, totalPow, result)
+	return result
 }

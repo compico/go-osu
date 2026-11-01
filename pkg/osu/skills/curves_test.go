@@ -660,3 +660,99 @@ func TestReactionSkillOfValues(t *testing.T) {
 		t.Errorf("got %v, want %v", got, want)
 	}
 }
+
+func TestPrecisionAndAccuracyCurvePeakIsTheSkill(t *testing.T) {
+	bm := curvesTestBeatmap(t)
+	vars := NewVars()
+
+	for _, mods := range DefaultModCombinations() {
+		t.Run(mods.String(), func(t *testing.T) {
+			curves := ProcessCurves(bm, mods, vars)
+			skills := ProcessBeatmap(bm, mods, vars).Skills
+
+			for _, tc := range []struct {
+				name  string
+				curve []StrainPoint
+				skill float64
+			}{
+				{"precision", curves.Precision, skills.Precision},
+				{"accuracy", curves.Accuracy, skills.Accuracy},
+			} {
+				if len(tc.curve) == 0 {
+					t.Fatalf("empty %s curve", tc.name)
+				}
+				peak := math.Inf(-1)
+				for _, p := range tc.curve {
+					peak = math.Max(peak, p.Value)
+				}
+				if peak != tc.skill {
+					t.Errorf("%s curve peak = %v, want the skill %v", tc.name, peak, tc.skill)
+				}
+			}
+		})
+	}
+}
+
+// The curves are the agility and stamina curves put through the skills'
+// formulas: same times and the same order of values.
+func TestPrecisionAndAccuracyCurveFollowTheirSource(t *testing.T) {
+	bm := curvesTestBeatmap(t)
+	vars := NewVars()
+
+	for _, mods := range DefaultModCombinations() {
+		c := ProcessCurves(bm, mods, vars)
+
+		for _, tc := range []struct {
+			name     string
+			src, got []StrainPoint
+		}{
+			{"precision", c.Agility, c.Precision},
+			{"accuracy", c.Stamina, c.Accuracy},
+		} {
+			if !reflect.DeepEqual(curveTimes(tc.src), curveTimes(tc.got)) {
+				t.Fatalf("%s %s: times differ from the source curve", mods, tc.name)
+			}
+			for i := range tc.src {
+				if math.IsNaN(tc.got[i].Value) || math.IsInf(tc.got[i].Value, 0) || tc.got[i].Value < 0 {
+					t.Fatalf("%s %s: point %d has value %v", mods, tc.name, i, tc.got[i].Value)
+				}
+				for j := range tc.src {
+					if tc.src[i].Value < tc.src[j].Value && tc.got[i].Value > tc.got[j].Value {
+						t.Fatalf("%s %s: points %d and %d are in the opposite order of the source", mods, tc.name, i, j)
+					}
+				}
+			}
+		}
+	}
+}
+
+// Precision and accuracy of a single value, with the numbers worked out by hand.
+func TestPrecisionAndAccuracyFormulas(t *testing.T) {
+	vars := NewVars()
+
+	// precision: 20 * ((1+a)^0.1 - 0.995462)*cs, squared. a = 0, cs = 4.
+	scaled := (1 - vars.Precision.AgilitySubtract) * 4
+	if got, want := precisionFromAgility(0, 4, vars), vars.Precision.TotalMult*scaled*scaled; math.Abs(got-want) > 1e-12 {
+		t.Errorf("precision = %v, want %v", got, want)
+	}
+
+	// accuracy: 23100 * (s^0.3 / ssUr)^1.3. s = 1, ssUr = 2.
+	want := vars.Accuracy.TotalMult * math.Pow(0.5, vars.Accuracy.TotalPow)
+	if got := accuracyFromStamina(1, 2, vars); math.Abs(got-want) > 1e-9 {
+		t.Errorf("accuracy = %v, want %v", got, want)
+	}
+}
+
+// Maps without circles have no SS_UR; accuracy is 0, not NaN.
+func TestAccuracyCurveWithoutCircles(t *testing.T) {
+	bm := curvesTestBeatmap(t)
+	for i := range bm.HitObjects {
+		bm.HitObjects[i].Type = osu.HitSlider
+	}
+	curves := ProcessCurves(bm, osu.NM, NewVars())
+	for _, p := range curves.Accuracy {
+		if math.IsNaN(p.Value) {
+			t.Fatalf("accuracy curve has NaN: %v", curves.Accuracy)
+		}
+	}
+}
