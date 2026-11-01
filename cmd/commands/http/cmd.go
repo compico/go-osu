@@ -76,9 +76,10 @@ func run(ctx context.Context, c *cli.Command) error {
 	osuGetBackgroundHandler := osuapi.NewOsuGetBackgroundHandler(osuService)
 	osuQueueAdjacentHandler := osuapi.NewOsuQueueAdjacentHandler(repos)
 	osuSongsSearchHandler := osuapi.NewOsuSongsSearchHandler(repos)
+	osuStrainsHandler := osuapi.NewOsuStrainsHandler(osuService)
 
 	http := httpserver.New(cfg, slogger)
-	http.RegisterRoutes(rt, viteView, osuSongHandler, osuTrackStreamHandler, osuGetBackgroundHandler, osuQueueAdjacentHandler, osuSongsSearchHandler)
+	http.RegisterRoutes(rt, viteView, osuSongHandler, osuTrackStreamHandler, osuGetBackgroundHandler, osuQueueAdjacentHandler, osuSongsSearchHandler, osuStrainsHandler)
 
 	g, gCtx := errgroup.WithContext(ctx)
 
