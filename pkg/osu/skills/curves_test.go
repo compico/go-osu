@@ -552,3 +552,111 @@ func TestReadingCurveWithoutPeaks(t *testing.T) {
 		}
 	}
 }
+
+func TestReactionCurvePeakIsTheSkill(t *testing.T) {
+	bm := curvesTestBeatmap(t)
+	vars := NewVars()
+
+	for _, mods := range DefaultModCombinations() {
+		t.Run(mods.String(), func(t *testing.T) {
+			curve := ProcessCurves(bm, mods, vars).Reaction
+			skill := ProcessBeatmap(bm, mods, vars).Skills.Reaction
+
+			if len(curve) == 0 {
+				t.Fatal("empty reaction curve")
+			}
+
+			peak := math.Inf(-1)
+			for _, p := range curve {
+				peak = math.Max(peak, p.Value)
+			}
+			if peak != skill {
+				t.Errorf("curve peak = %v, want the reaction skill %v", peak, skill)
+			}
+		})
+	}
+}
+
+// One point per target point: a circle's start or a slider tick.
+func TestReactionCurveTimes(t *testing.T) {
+	vars := NewVars()
+	times := []int{1000, 1100, 1210, 1500, 1503, 2000}
+
+	for _, mods := range []osu.Mod{osu.NM, osu.DT, osu.HT} {
+		t.Run(mods.String(), func(t *testing.T) {
+			speed := modsSpeed(mods)
+			// The note 3 ms after another is dropped by the 5 ms filter.
+			var want []int
+			for _, original := range []int{1000, 1100, 1210, 1500, 2000} {
+				want = append(want, int(math.Ceil(float64(original)/speed)))
+			}
+			if got := curveTimes(ProcessCurves(circlesAt(times...), mods, vars).Reaction); !reflect.DeepEqual(got, want) {
+				t.Errorf("times = %v, want %v", got, want)
+			}
+		})
+	}
+}
+
+// The curve is proportional to the per-point reaction values.
+func TestReactionCurveIsProportionalToTheValues(t *testing.T) {
+	bm := curvesTestBeatmap(t)
+	vars := NewVars()
+
+	for _, mods := range DefaultModCombinations() {
+		md := NewMapData(ApplyMods(bm, mods), mods)
+		md.prepare()
+		values := md.reactionValues(vars, md.HasMod(osu.HD))
+		curve := md.reactionCurve(vars, md.HasMod(osu.HD))
+
+		if len(curve) != len(values) {
+			t.Fatalf("%s: %d points for %d values", mods, len(curve), len(values))
+		}
+		maxValue, peak := MaxFloatSliceValue(values), 0.0
+		for _, p := range curve {
+			peak = math.Max(peak, p.Value)
+		}
+		if maxValue == 0 || peak == 0 {
+			t.Fatalf("%s: max = %v, peak = %v", mods, maxValue, peak)
+		}
+		for i, v := range values {
+			want, got := v/maxValue, curve[i].Value/peak
+			if math.Abs(got-want) > 1e-9 {
+				t.Fatalf("%s: point %d has %v of the peak, want %v", mods, i, got, want)
+			}
+		}
+	}
+}
+
+func TestReactionCurveIsOrderedAndFinite(t *testing.T) {
+	bm := curvesTestBeatmap(t)
+	vars := NewVars()
+
+	for _, mods := range DefaultModCombinations() {
+		curve := ProcessCurves(bm, mods, vars).Reaction
+		for i, p := range curve {
+			if math.IsNaN(p.Value) || math.IsInf(p.Value, 0) || p.Value < 0 {
+				t.Fatalf("%s: point %d has value %v", mods, i, p.Value)
+			}
+			if i > 0 && p.Time < curve[i-1].Time {
+				t.Fatalf("%s: point %d at %d precedes point %d at %d", mods, i, p.Time, i-1, curve[i-1].Time)
+			}
+		}
+	}
+}
+
+// reactionSkill must give what the skill always was; pin it on hand-made values.
+func TestReactionSkillOfValues(t *testing.T) {
+	vars := NewVars()
+	w := vars.Reaction.AvgWeighting
+
+	if got := reactionSkill(nil, vars); got != 0 {
+		t.Errorf("no values: %v, want 0", got)
+	}
+	// 10 sets avg to w*10; 4 is below half of the max (10) and is ignored;
+	// 8 moves the average on.
+	avg := w * 10
+	avg = w*8 + (1-w)*avg
+	if got, want := reactionSkill([]float64{10, 4, 8}, vars), (10+avg)/2; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
