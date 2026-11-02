@@ -44,6 +44,8 @@
           </div>
         </div>
       </div>
+
+      <StrainGraph :beatmap-id="diff.beatmap_id" :mods="modsLabel" />
     </div>
   </div>
 </template>
@@ -51,6 +53,7 @@
 <script setup>
 import { computed } from 'vue'
 import { usePlayerStore } from '@/stores/player.store'
+import StrainGraph from './StrainGraph.vue'
 
 const props = defineProps({
   group: { type: Object, default: null },
