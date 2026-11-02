@@ -12,10 +12,10 @@ import (
 )
 
 const (
-	// defaultStrainsWindow is the default thinning of the curves, in ms: fine
-	// enough to follow a stream, coarse enough for a few hundred points per
-	// minute of the map.
-	defaultStrainsWindow = 400
+	// defaultStrainsWindow is the default resampling of the curves, in ms of the
+	// beatmap's timeline. Per-note values are far too noisy to read as a line;
+	// the strongest value in 5 s follows how the difficulty develops.
+	defaultStrainsWindow = 5000
 	maxStrainsWindow     = 60000
 )
 
@@ -27,10 +27,11 @@ func NewOsuStrainsHandler(osuService *service.Osu) *OsuStrainsHandler {
 	return &OsuStrainsHandler{osuService: osuService}
 }
 
-// Handle serves GET /api/osu/songs/:difficulty_id/strains?mods=HDDT&window=400.
+// Handle serves GET /api/osu/songs/:difficulty_id/strains?mods=HDDT&window=5000.
 //
 // mods is a concatenated mod string like the search DSL's mods= (default: no
-// mods). window is the thinning in milliseconds (0 returns every point).
+// mods). window is the width of the resampling windows in ms of the beatmap's
+// timeline (default 5000; 0 returns every point of every curve, per note).
 func (h *OsuStrainsHandler) Handle(ctx fiber.Ctx) error {
 	diffID := fiber.Params[int32](ctx, "difficulty_id", -100)
 	if diffID == -100 {
