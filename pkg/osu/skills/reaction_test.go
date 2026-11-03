@@ -93,19 +93,30 @@ func TestReactionPrefersLongJumps(t *testing.T) {
 	}
 }
 
-// A higher approach rate shows the notes later, so there is less time to react.
-// It only matters when the notes are further apart than they are visible.
+// A higher approach rate shows the notes later, so there is less time to react,
+// at any speed.
 func TestReactionRisesWithApproachRate(t *testing.T) {
-	low := reactionOf(alternatingJumps(40, 800, 150, 6))
-	high := reactionOf(alternatingJumps(40, 800, 150, 10))
-	if !(high > low) {
-		t.Errorf("AR10 %v is not above AR6 %v", high, low)
+	for _, interval := range []int{150, 300, 800} {
+		low := reactionOf(alternatingJumps(40, interval, 150, 6))
+		high := reactionOf(alternatingJumps(40, interval, 150, 10))
+		if !(high > low) {
+			t.Errorf("interval %d: AR10 %v is not above AR6 %v", interval, high, low)
+		}
 	}
-	// Close together, the notes are visible long before they are hit at both.
-	a := reactionOf(alternatingJumps(40, 150, 150, 6))
-	b := reactionOf(alternatingJumps(40, 150, 150, 10))
-	if a != b {
-		t.Errorf("fast notes: AR6 %v differs from AR10 %v", a, b)
+}
+
+// The share of the gap that the movement takes is what raises the reaction:
+// the same fast rhythm is harder with long jumps than with short ones, and an
+// easy rhythm stays near the approach rate's base.
+func TestReactionDecisionTimeIsTheVisibleTimeWhenThereIsNoMovement(t *testing.T) {
+	vars := NewVars()
+	if got := reactionDecisionTime(500, 400, 0, 0, false, vars); got != 500 {
+		t.Errorf("no movement: %v, want the visible time 500", got)
+	}
+	// Half of the gap spent on the movement leaves half of the visible time.
+	gap := 2 * vars.Reaction.FittsMs // dist 1, sharpness 1: one bit
+	if got := reactionDecisionTime(500, gap, 1, 1, false, vars); math.Abs(got-250) > 1e-9 {
+		t.Errorf("half the gap: %v, want 250", got)
 	}
 }
 
