@@ -1,6 +1,9 @@
 // Package outliers adds the "outliers" command: it lists the beatmaps whose
-// skill is far above (or below) what their star rating predicts, to check
-// and tune a skill formula against the library.
+// skill is far above (or below) that of beatmaps with a similar star rating.
+//
+// It is a way to find suspects, not a target: skills do not have to follow the
+// star rating, they are meant to replace it. A listed beatmap is one to look at,
+// to see whether its skill is a formula's mistake or a real difference.
 package outliers
 
 import (
@@ -46,7 +49,7 @@ func init() {
 
 	commands.Append(&cli.Command{
 		Name:  "outliers",
-		Usage: "list beatmaps whose skill is far from what their star rating predicts",
+		Usage: "list beatmaps whose skill stands out from beatmaps of a similar star rating, to look for formula mistakes",
 		Flags: flags,
 		Action: func(ctx context.Context, c *cli.Command) error {
 			return run(ctx, c, os.Stdout)
