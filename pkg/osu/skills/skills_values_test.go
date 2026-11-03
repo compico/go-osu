@@ -246,9 +246,8 @@ func TestSkillsValues_CompareWithReference(t *testing.T) {
 					result.Skills.Accuracy,
 					ref.Skills.Accuracy)
 
-				check(t, "Reaction",
-					result.Skills.Reaction,
-					ref.Skills.Reaction)
+				// Reaction is not compared: it is no longer the original
+				// program's formula (see reaction.go).
 			})
 		}
 	}

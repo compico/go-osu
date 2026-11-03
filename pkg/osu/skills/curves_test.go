@@ -644,23 +644,6 @@ func TestReactionCurveIsOrderedAndFinite(t *testing.T) {
 	}
 }
 
-// reactionSkill must give what the skill always was; pin it on hand-made values.
-func TestReactionSkillOfValues(t *testing.T) {
-	vars := NewVars()
-	w := vars.Reaction.AvgWeighting
-
-	if got := reactionSkill(nil, vars); got != 0 {
-		t.Errorf("no values: %v, want 0", got)
-	}
-	// 10 sets avg to w*10; 4 is below half of the max (10) and is ignored;
-	// 8 moves the average on.
-	avg := w * 10
-	avg = w*8 + (1-w)*avg
-	if got, want := reactionSkill([]float64{10, 4, 8}, vars), (10+avg)/2; got != want {
-		t.Errorf("got %v, want %v", got, want)
-	}
-}
-
 func TestPrecisionAndAccuracyCurvePeakIsTheSkill(t *testing.T) {
 	bm := curvesTestBeatmap(t)
 	vars := NewVars()

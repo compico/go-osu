@@ -184,8 +184,8 @@ func (md *MapData) readingCurve(vars *Vars) []StrainPoint {
 	return points
 }
 
-// reactionCurve returns the reaction skill at every target point (circle start
-// or slider tick). Requires prepare.
+// reactionCurve returns the reaction skill at every hit object that is a
+// target (not a spinner). Requires prepare.
 //
 // The reaction skill is (max + avg) / 2 of these values, where avg is a
 // running average that is always below the maximum. The values are already on
@@ -194,19 +194,23 @@ func (md *MapData) readingCurve(vars *Vars) []StrainPoint {
 // Skills.Reaction. A map whose values are all 0 has a reaction of 0, and so
 // has its curve.
 func (md *MapData) reactionCurve(vars *Vars, hidden bool) []StrainPoint {
-	values := md.reactionValues(vars, hidden)
+	reaction := md.reactionPoints(vars, hidden)
+	values := make([]float64, len(reaction))
+	for i, p := range reaction {
+		values[i] = p.Value
+	}
 	skill := reactionSkill(values, vars)
 	maxValue := MaxFloatSliceValue(values)
 
-	points := make([]StrainPoint, len(values))
-	for i, value := range values {
+	points := make([]StrainPoint, len(reaction))
+	for i, p := range reaction {
 		// The ratio is exactly 1 for the maximum, which makes the curve's
 		// maximum exactly the skill.
 		scaled := 0.0
 		if maxValue > 0 {
-			scaled = value / maxValue * skill
+			scaled = p.Value / maxValue * skill
 		}
-		points[i] = StrainPoint{Time: int(md.TargetPoints[i].Time), Value: scaled}
+		points[i] = StrainPoint{Time: int(p.Time), Value: scaled}
 	}
 	return points
 }

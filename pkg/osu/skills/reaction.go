@@ -2,97 +2,112 @@ package skills
 
 import (
 	"math"
+	"sort"
 
 	"github.com/compico/go-osu/pkg/osu"
+	"github.com/compico/go-osu/pkg/vector2d"
 )
 
-// reactionConstA, reactionConstB precompute the two magic constants from
-// react2Skill in reaction.cpp:
+// Reaction models how little time the player has to decide where to go next.
 //
-//	a = pow(2, log(78608/15625)/log(34/25)) * pow(125, log(68/25)/log(34/25))
-//	b = log(2) / (log(2) - 2*log(5) + log(17))
+// For every hit object after the first one the player has to see the object,
+// decide where it is and move there. Three things bound that time:
 //
-// See https://www.desmos.com/calculator/lg2jqyesnu
-var (
-	reactionConstA = math.Pow(2.0, math.Log(78608.0/15625.0)/math.Log(34.0/25.0)) *
-		math.Pow(125.0, math.Log(68.0/25.0)/math.Log(34.0/25.0))
-	reactionConstB = math.Log(2.0) / (math.Log(2.0) - 2.0*math.Log(5.0) + math.Log(17.0))
-)
+//   - how long the object has been visible (approach rate, Hidden's fade),
+//   - how long ago the previous object was finished: the gap between the end
+//     of the previous object (a slider's end, not its start) and this hit,
+//   - how much of that gap the movement itself takes. The movement time follows
+//     Fitts's law, b*log2(1 + distance/diameter), and the distance is weighted
+//     by the turn angle: a straight continuation is predictable and costs less
+//     than a sharp change of direction.
+//
+// What is left is the decision time T. Reaction grows as T shrinks:
+//
+//	value = VerScale * (RefTime / T)^CurveExp
+//
+// T is never below MinTime, which is the cap for impossibly fast notes.
+// A slider in front of the object keeps the player busy until it ends, so the
+// decision time is shortened by SliderPenalty when the object follows a slider
+// and the gap is shorter than the object's visible time.
+//
+// The first object has no previous one: its decision time is its visible time.
+// Spinners are not targets, but a spinner's end still counts as the end of the
+// previous object.
 
-// react2Skill ports reaction.cpp's react2Skill.
-func react2Skill(timeToReact float64) float64 {
-	return reactionConstA / math.Pow(timeToReact, reactionConstB)
+// reactionPoint is the reaction at one hit object.
+type reactionPoint struct {
+	Time  float64
+	Value float64
 }
 
-// patternReq ports reaction.cpp's PatternReq.
-func patternReq(p1, p2, p3 TargetPoint, csPx float64) float64 {
-	dist := p1.Pos.DistanceFrom(p2.Pos) + p2.Pos.DistanceFrom(p3.Pos)
-	angle := getAngle(p1.Pos, p2.Pos, p3.Pos)
+// reactionDecisionTime returns the decision time T in milliseconds for an
+// object visible for visible ms, hit gap ms after the previous object was
+// finished, travelling dist diameters (turn sharpness sharp in [0, 1]).
+func reactionDecisionTime(visible, gap, dist, sharp float64, afterSlider bool, vars *Vars) float64 {
+	rv := vars.Reaction
+	movement := rv.FittsMs * math.Log2(1+dist*(0.5+0.5*sharp))
 
-	t := math.Abs(p3.Time - p1.Time)
-	if t < 16 { // 16ms @ 60 FPS
-		t = 16
+	t := math.Min(visible, gap) - movement
+	if afterSlider && gap < visible {
+		t *= 1 - rv.SliderPenalty
 	}
-
-	// 2 * csPx = 1 diameter of CS since CS here is being calculated in terms of radius.
-	return t / ((dist / (2 * csPx)) * ((math.Pi - angle) / math.Pi))
+	return math.Max(t, rv.MinTime)
 }
 
-// pattern2Reaction ports reaction.cpp's Pattern2Reaction.
-// See https://www.desmos.com/calculator/k9r2uipjfq
-func pattern2Reaction(p1, p2, p3 TargetPoint, arMs, csPx float64, vars *Vars) float64 {
-	damping := vars.Reaction.PatternDamping
-	patReq := patternReq(p1, p2, p3, csPx)
-
-	return arMs - arMs*math.Exp(-damping*patReq)
+// reactionAt turns a decision time into a skill value.
+func reactionAt(decision float64, vars *Vars) float64 {
+	return vars.Reaction.VerScale * math.Pow(vars.Reaction.RefTime/decision, vars.Reaction.CurveExp)
 }
 
-// getReactionSkillAt ports reaction.cpp's getReactionSkillAt.
-func getReactionSkillAt(targetPoints []TargetPoint, targetPoint TargetPoint, hitobjects []osu.HitObject, ar, cs float64, hidden bool, vars *Vars) float64 {
-	fadeInReactReq := vars.Reaction.FadeinPercent
-	timeToReact := 0.0
-	index := findTimingAt(targetPoints, targetPoint.Time)
+// reactionPoints returns the reaction at every hit object that is a target.
+func (md *MapData) reactionPoints(vars *Vars, hidden bool) []reactionPoint {
+	hos := md.Map.HitObjects
+	ar := md.Map.ApproachRate
+	diameter := 2 * float64(cs2px(md.Map.CircleSize))
+	fade := vars.Reaction.FadeinPercent
 
-	debugf("[REACTION] time=%v index=%v ar=%v cs=%v hidden=%d\n", targetPoint.Time, index, ar, cs, map[bool]int{false: 0, true: 1}[hidden])
-
-	if index >= len(targetPoints)-2 {
-		timeToReact = float64(arToMs(ar))
-		debugf("[REACTION] branch=tail timeToReact=%v\n", timeToReact)
-	} else if index < 3 {
-		visibilityTimes := getVisibilityTimes(hitobjects[0], ar, hidden, fadeInReactReq, 1.0)
-		timeToReact = float64(hitobjects[0].Time - visibilityTimes.first)
-		debugf("[REACTION] branch=head visFirst=%v timeToReact=%v\n", visibilityTimes.first, timeToReact)
-	} else {
-		t1 := targetPoints[index]
-		t2 := targetPoints[index+1]
-		t3 := targetPoints[index+2]
-
-		timeSinceStart := 0
-		if targetPoint.Press {
-			timeSinceStart = absInt(int(targetPoint.Time) - hitobjects[targetPoint.Key].Time)
+	points := make([]reactionPoint, 0, len(hos))
+	prevTime := math.MinInt32
+	for i := range hos {
+		ho := &hos[i]
+		// Objects a few milliseconds after another cannot be hit separately.
+		if absInt(ho.Time-prevTime) < 5 {
+			continue
+		}
+		prevTime = ho.Time
+		if ho.Type.IsHitSpinner() {
+			continue
 		}
 
-		visibilityTimes := getVisibilityTimes(hitobjects[0], ar, hidden, fadeInReactReq, 1.0)
-		actualArTime := (hitobjects[0].Time - visibilityTimes.first) + timeSinceStart
+		visible := float64(ho.Time - getVisibilityTimes(*ho, ar, hidden, fade, 1.0).first)
+		if visible <= 0 {
+			continue
+		}
 
-		result := pattern2Reaction(t1, t2, t3, float64(actualArTime), float64(cs2px(cs)), vars)
-		timeToReact = math.Sqrt(timeToReact*timeToReact + result*result)
+		decision := visible
+		if i > 0 {
+			prev := &hos[i-1]
+			gap := float64(ho.Time - endTimeOf(prev))
+			from := endPointOf(prev)
+			dist := from.DistanceFrom(ho.Pos) / diameter
 
-		debugf("[REACTION] branch=mid timeSinceStart=%v actualArTime=%v cs2px=%v result=%v timeToReact=%v\n",
-			timeSinceStart, actualArTime, cs2px(cs), result, timeToReact)
+			sharp := 0.5 // no turn to judge: assume a middling one
+			if i > 1 {
+				sharp = (math.Pi - getAngle(endPointOf(&hos[i-2]), endPointOf(prev), ho.Pos)) / math.Pi
+				if math.IsNaN(sharp) {
+					sharp = 0.5
+				}
+			}
+			afterSlider := endTimeOf(prev) > prev.Time
+			decision = reactionDecisionTime(visible, gap, dist, sharp, afterSlider, vars)
+		}
+
+		points = append(points, reactionPoint{Time: float64(ho.Time), Value: reactionAt(decision, vars)})
 	}
-
-	verScale := vars.Reaction.VerScale
-	curveExp := vars.Reaction.CurveExp
-	skillVal := verScale * math.Pow(react2Skill(timeToReact), curveExp)
-
-	debugf("[REACTION] react2Skill=%v verScale=%v curveExp=%v skillVal=%v\n", react2Skill(timeToReact), verScale, curveExp, skillVal)
-
-	return skillVal
+	return points
 }
 
-// CalculateReaction ports reaction.cpp's CalculateReaction.
-// Requires md.TargetPoints (populated by gatherTargetPoints).
+// CalculateReaction fills md.Skills.Reaction.
 func CalculateReaction(md *MapData, vars *Vars, hidden bool) {
 	md.calculateReaction(vars, hidden)
 }
@@ -101,30 +116,49 @@ func (md *MapData) calculateReaction(vars *Vars, hidden bool) {
 	md.Skills.Reaction = reactionSkill(md.reactionValues(vars, hidden), vars)
 }
 
-// reactionValues returns the reaction skill at every target point.
+// reactionValues returns the reaction skill at every target.
 func (md *MapData) reactionValues(vars *Vars, hidden bool) []float64 {
-	values := make([]float64, len(md.TargetPoints))
-	for i, tick := range md.TargetPoints {
-		values[i] = getReactionSkillAt(md.TargetPoints, tick, md.Map.HitObjects, md.Map.ApproachRate, md.Map.CircleSize, hidden, vars)
+	points := md.reactionPoints(vars, hidden)
+	values := make([]float64, len(points))
+	for i, p := range points {
+		values[i] = p.Value
 	}
 	return values
 }
 
-// reactionSkill is the mean of the strongest value and a running average of
-// the values above half of the strongest one so far.
+// reactionSkill is the mean of the strongest values: the top TopShare of all
+// values, at least reactionMinTop of them. One note cannot make a map hard to
+// react to, a passage can; the mean of the top few is that passage.
 func reactionSkill(values []float64, vars *Vars) float64 {
-	mx := 0.0
-	avg := 0.0
-	weight := vars.Reaction.AvgWeighting
-
-	for _, val := range values {
-		if val > mx {
-			mx = val
-		}
-		if val > mx/2.0 {
-			avg = weight*val + (1-weight)*avg
-		}
+	if len(values) == 0 {
+		return 0
 	}
+	sorted := append([]float64(nil), values...)
+	sort.Sort(sort.Reverse(sort.Float64Slice(sorted)))
 
-	return (mx + avg) / 2.0
+	n := int(math.Ceil(float64(len(sorted)) * vars.Reaction.TopShare))
+	n = min(max(n, reactionMinTop), len(sorted))
+
+	sum := 0.0
+	for _, v := range sorted[:n] {
+		sum += v
+	}
+	return sum / float64(n)
+}
+
+// reactionMinTop is the fewest values reactionSkill averages.
+const reactionMinTop = 5
+
+// endTimeOf is when the object is finished: a slider's end, otherwise its time.
+func endTimeOf(ho *osu.HitObject) int {
+	return max(ho.EndTime, ho.Time)
+}
+
+// endPointOf is where the cursor is after the object: a slider's end,
+// otherwise its position.
+func endPointOf(ho *osu.HitObject) vector2d.Vector2dd {
+	if ho.Type.IsHitSlider() {
+		return ho.EndPoint
+	}
+	return ho.Pos
 }
