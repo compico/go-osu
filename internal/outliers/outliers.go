@@ -1,5 +1,8 @@
-// Package outliers finds beatmaps whose skill is far from what their star
-// rating predicts.
+// Package outliers finds beatmaps whose skill stands out from that of beatmaps
+// with a similar star rating.
+//
+// This is for finding suspects. Skills are not meant to follow the star
+// rating, they replace it, so the fit is not something to tune a skill to.
 //
 // The skill is fitted to the stars on a log-log scale, ln(skill) = a + b*ln(stars),
 // over all given beatmaps. A beatmap's residual is how far ln(skill) is above
