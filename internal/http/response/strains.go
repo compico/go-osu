@@ -14,9 +14,13 @@ import (
 // shown on the beatmap card (Memory is cumulative and ends at the skill,
 // Tenacity is a step curve; see skills.Curves).
 //
-// Curves are thinned to the strongest point per Window milliseconds and are
-// sparse where the map has breaks. A curve that does not exist for the map
-// (Memory without FL, Tenacity without streams) is an empty list.
+// Window is in milliseconds of the beatmap's own timeline. Unless it is 0,
+// every curve is resampled onto the same uniform grid of such windows (the
+// middle of window k is at (k+0.5)*Window of the beatmap's time): one point per
+// window holding the strongest value in it (see skills.ResampleMax), 0 where the
+// map has a break or no streams, and for memory, which only adds up, the value so
+// far. With Window 0 every point of every curve is returned as it is. A curve
+// that does not exist for the map (Memory without FL) is an empty list.
 type OsuStrainsResponse struct {
 	BeatmapID int32   `json:"beatmap_id"`
 	Mods      string  `json:"mods"`
@@ -33,16 +37,19 @@ type OsuStrainsResponse struct {
 	Reaction  []skills.StrainPoint `json:"reaction"`
 }
 
-// NewOsuStrainsResponse thins every curve to the strongest point per window
-// (0 keeps them all).
+// NewOsuStrainsResponse resamples every curve onto windows of `window` ms of
+// the beatmap's timeline (0 keeps every point as it is).
 func NewOsuStrainsResponse(beatmapID int32, curves *skills.Curves, window int) OsuStrainsResponse {
-	thin := func(points []skills.StrainPoint) []skills.StrainPoint {
-		out := skills.MaxPerWindow(points, window)
-		if out == nil {
-			// Encode "no curve" as [] and not as null.
-			out = []skills.StrainPoint{}
+	windows := skills.WindowCount(window, curves.Speed,
+		curves.Stamina, curves.Tenacity, curves.Agility, curves.Precision,
+		curves.Reading, curves.Memory, curves.Accuracy, curves.Reaction)
+
+	resample := func(points []skills.StrainPoint, carry bool) []skills.StrainPoint {
+		// A curve the map does not have stays empty, not a list of zeros.
+		if len(points) == 0 {
+			return []skills.StrainPoint{}
 		}
-		return out
+		return skills.ResampleMax(points, window, curves.Speed, windows, carry)
 	}
 
 	return OsuStrainsResponse{
@@ -51,13 +58,13 @@ func NewOsuStrainsResponse(beatmapID int32, curves *skills.Curves, window int) O
 		Speed:     curves.Speed,
 		Window:    window,
 
-		Stamina:   thin(curves.Stamina),
-		Tenacity:  thin(curves.Tenacity),
-		Agility:   thin(curves.Agility),
-		Precision: thin(curves.Precision),
-		Reading:   thin(curves.Reading),
-		Memory:    thin(curves.Memory),
-		Accuracy:  thin(curves.Accuracy),
-		Reaction:  thin(curves.Reaction),
+		Stamina:   resample(curves.Stamina, false),
+		Tenacity:  resample(curves.Tenacity, false),
+		Agility:   resample(curves.Agility, false),
+		Precision: resample(curves.Precision, false),
+		Reading:   resample(curves.Reading, false),
+		Memory:    resample(curves.Memory, true),
+		Accuracy:  resample(curves.Accuracy, false),
+		Reaction:  resample(curves.Reaction, false),
 	}
 }

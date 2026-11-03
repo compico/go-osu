@@ -80,7 +80,7 @@
 import { computed, reactive, ref } from 'vue'
 import { useStrains } from '@/composables/useStrains'
 import { SKILL_KEYS, type SkillKey } from '@/types/strains'
-import { formatClock, niceStep, splitSegments, valueAt } from '@/utils/strainGraph'
+import { formatClock, niceStep, splitSegments, toSteps, valueAt } from '@/utils/strainGraph'
 
 const props = defineProps<{
   beatmapId: number | null | undefined
@@ -119,6 +119,17 @@ function toggle(key: SkillKey) {
 const MIN_BREAK_MS = 3000
 const maxGap = computed(() => Math.max(MIN_BREAK_MS, (data.value?.window ?? 400) * 3))
 
+// Lines of a skill. Memory only adds up: one line. Tenacity is on or off: steps,
+// one window wide. The others are cut at breaks.
+function segmentsOf(s: { key: SkillKey; points: { t: number; v: number }[] }) {
+  const toPoints = (pts: { t: number; v: number }[]) => pts.map((p) => ({ time: p.t, value: p.v }))
+  const fromPoints = (pts: { time: number; value: number }[]) => pts.map((p) => ({ t: p.time, v: p.value }))
+
+  if (s.key === 'memory') return [s.points]
+  if (s.key === 'tenacity') return [fromPoints(toSteps(toPoints(s.points), data.value?.window || 0))]
+  return splitSegments(toPoints(s.points), maxGap.value * (data.value?.speed || 1)).map(fromPoints)
+}
+
 /** Every skill's points on the beatmap's own timeline (ms). */
 const skillList = computed(() => {
   const speed = data.value?.speed || 1
@@ -143,13 +154,7 @@ const shownSkills = computed(() =>
     .map((s) => ({
       ...s,
       // The running total of memory is one line; the others break at pauses.
-      segments:
-        s.key === 'memory'
-          ? [s.points]
-          : splitSegments(
-              s.points.map((p) => ({ time: p.t, value: p.v })),
-              maxGap.value * (data.value?.speed || 1),
-            ).map((seg) => seg.map((p) => ({ t: p.time, v: p.value }))),
+      segments: segmentsOf(s),
     })),
 )
 
