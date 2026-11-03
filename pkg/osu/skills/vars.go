@@ -170,7 +170,7 @@ func NewVars() *Vars {
 			TopShare:      0.05,
 			FadeinPercent: 0.1,
 			FittsMs:       45,
-			MinTime:       25,
+			MinTime:       60,
 			SliderPenalty: 0.2,
 			RefTime:       500,
 			VerScale:      150,
