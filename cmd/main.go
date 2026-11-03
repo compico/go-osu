@@ -10,6 +10,7 @@ import (
 	"github.com/urfave/cli/v3"
 
 	_ "github.com/compico/go-osu/cmd/commands/http"
+	_ "github.com/compico/go-osu/cmd/commands/outliers"
 )
 
 var (
