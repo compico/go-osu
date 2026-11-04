@@ -20,7 +20,7 @@ import (
 // change of direction. The larger the share of the gap the movement takes, the
 // less of the visible time is left:
 //
-//	T = visible * (1 - movement/gap)
+//	T = visible * exp(-ShareDecay * movement/gap)
 //
 // and reaction grows as T shrinks:
 //
@@ -28,7 +28,12 @@ import (
 //
 // so the approach rate sets the base and the pattern raises it. A fast rhythm
 // of short movements costs little, a fast rhythm of long jumps costs a lot.
-// T is never below MinTime, which is the cap for impossibly fast notes.
+// A slider's end is not where the player leaves it: SliderLeniency ms (map
+// time) earlier is enough, and that is added to the gap after a slider.
+//
+// The share is not capped at 1, so a map that is faster still, DT over NM, is
+// harder at every point however impossible it already was. T is never below
+// MinTime, a guard only.
 // A slider in front of the object keeps the player busy until it ends, so T
 // is shortened by SliderPenalty when the object follows a slider and the gap
 // is shorter than the visible time.
@@ -36,6 +41,12 @@ import (
 // The first object has no previous one: its T is its visible time. Spinners
 // are not targets, but a spinner's end still counts as the end of the previous
 // object.
+
+// reactionMaxShare bounds movement/gap for a gap that is 0 or almost.
+const reactionMaxShare float64 = 4
+
+// reactionShareKnee is the limit of the saturated share.
+const reactionShareKnee float64 = 2
 
 // reactionPoint is the reaction at one hit object.
 type reactionPoint struct {
@@ -50,12 +61,16 @@ func reactionDecisionTime(visible, gap, dist, sharp float64, afterSlider bool, v
 	rv := vars.Reaction
 	movement := rv.FittsMs * math.Log2(1+dist*(0.5+0.5*sharp))
 
-	// The share of the gap that the movement takes; at 1 there is no time left.
-	share := 1.0
+	// The share of the gap that the movement takes. It can be above 1: a jump
+	// that does not fit the gap at all, and a faster map has a larger share.
+	share := reactionMaxShare
 	if gap > 0 {
-		share = math.Min(movement/gap, 1)
+		share = math.Min(movement/gap, reactionMaxShare)
 	}
-	t := visible * (1 - share)
+	// Beyond a share of 1 a jump is impossible and more of it counts less:
+	// the share saturates smoothly towards reactionShareKnee.
+	share = reactionShareKnee * share / (reactionShareKnee + share)
+	t := visible * math.Exp(-rv.ShareDecay*share)
 	if afterSlider && gap < visible {
 		t *= 1 - rv.SliderPenalty
 	}
@@ -96,6 +111,11 @@ func (md *MapData) reactionPoints(vars *Vars, hidden bool) []reactionPoint {
 		if i > 0 {
 			prev := &hos[i-1]
 			gap := float64(ho.Time - endTimeOf(prev))
+			if endTimeOf(prev) > prev.Time {
+				// A slider can be let go a little before its end; the leniency is
+				// in map time, so the time of the mod's speed is shorter.
+				gap += vars.Reaction.SliderLeniency / modsSpeed(md.Mods)
+			}
 			from := endPointOf(prev)
 			dist := from.DistanceFrom(ho.Pos) / diameter
 

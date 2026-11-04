@@ -113,10 +113,59 @@ func TestReactionDecisionTimeIsTheVisibleTimeWhenThereIsNoMovement(t *testing.T)
 	if got := reactionDecisionTime(500, 400, 0, 0, false, vars); got != 500 {
 		t.Errorf("no movement: %v, want the visible time 500", got)
 	}
-	// Half of the gap spent on the movement leaves half of the visible time.
+	// Half of the gap spent on the movement: share 0.5, saturated by the knee.
 	gap := 2 * vars.Reaction.FittsMs // dist 1, sharpness 1: one bit
-	if got := reactionDecisionTime(500, gap, 1, 1, false, vars); math.Abs(got-250) > 1e-9 {
-		t.Errorf("half the gap: %v, want 250", got)
+	share := reactionShareKnee * 0.5 / (reactionShareKnee + 0.5)
+	want := 500 * math.Exp(-vars.Reaction.ShareDecay*share)
+	if got := reactionDecisionTime(500, gap, 1, 1, false, vars); math.Abs(got-want) > 1e-9 {
+		t.Errorf("half the gap: %v, want %v", got, want)
+	}
+}
+
+// A mod that makes the map faster makes it harder at every point, however
+// impossible the point already was.
+func TestReactionRisesWithSpeedEvenWhenImpossible(t *testing.T) {
+	vars := NewVars()
+	// 5 diameters in the gap that one needs about 100 ms for: share 1.5 and 3.
+	slow := reactionDecisionTime(500, 70, 5, 1, false, vars)
+	fast := reactionDecisionTime(500, 35, 5, 1, false, vars)
+	if !(fast < slow) {
+		t.Errorf("a shorter gap gives %v, not below %v", fast, slow)
+	}
+}
+
+// A slider can be let go a little before its end, so the gap after it is
+// longer by SliderLeniency in map time: less of it in real time under DT.
+func TestReactionAfterSliderUsesTheLeniency(t *testing.T) {
+	bm := circlesAt()
+	bm.ApproachRate = 9
+	at := func(x float64, tm int, typ osu.HitObjectType, end int) osu.HitObject {
+		p := vector2d.Vector2dd{X: x, Y: 200}
+		return osu.HitObject{Pos: p, EndPoint: p, Time: tm, EndTime: end, Type: typ}
+	}
+	bm.HitObjects = []osu.HitObject{
+		at(100, 1000, osu.HitNormal, 1000),
+		at(100, 1400, osu.HitSlider, 1500),
+		at(300, 1600, osu.HitNormal, 1600),
+	}
+
+	last := func(mods osu.Mod, leniency float64) float64 {
+		vars := NewVars()
+		vars.Reaction.SliderLeniency = leniency
+		// reactionPoints needs only the hit objects, not the prepared slider data.
+		md := NewMapData(ApplyMods(bm, mods), mods)
+		p := md.reactionPoints(vars, false)
+		return p[len(p)-1].Value
+	}
+
+	if none, some := last(osu.NM, 0), last(osu.NM, 36); !(some < none) {
+		t.Errorf("leniency: %v is not below %v", some, none)
+	}
+	// The same leniency is worth less real time under DT.
+	nm := last(osu.NM, 0) - last(osu.NM, 36)
+	dt := last(osu.DT, 0) - last(osu.DT, 36)
+	if nm <= 0 || dt <= 0 {
+		t.Errorf("leniency does not lower the reaction: NM %v, DT %v", nm, dt)
 	}
 }
 
