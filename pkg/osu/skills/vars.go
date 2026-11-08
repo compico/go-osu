@@ -93,7 +93,12 @@ type ReactionVars struct {
 	FadeinPercent float64 `json:"fadeinPercent"`
 	// FittsMs is the movement time in ms per bit of Fitts's index of difficulty.
 	FittsMs float64 `json:"fittsMs"`
-	// MinTime is the shortest decision time in ms.
+	// ShareDecay is how fast the time left falls with the movement's share of
+	// the gap: T = visible * exp(-ShareDecay * share).
+	ShareDecay float64 `json:"shareDecay"`
+	// SliderLeniency is how early in ms of map time a slider can be let go.
+	SliderLeniency float64 `json:"sliderLeniency"`
+	// MinTime is the shortest decision time in ms, a guard.
 	MinTime float64 `json:"minTime"`
 	// SliderPenalty is the share of the decision time lost when the object
 	// follows a slider.
@@ -167,14 +172,16 @@ func NewVars() *Vars {
 			TotalPow:         0.3,
 		},
 		Reaction: ReactionVars{
-			TopShare:      0.05,
-			FadeinPercent: 0.1,
-			FittsMs:       45,
-			MinTime:       25,
-			SliderPenalty: 0.2,
-			RefTime:       500,
-			VerScale:      150,
-			CurveExp:      0.71,
+			TopShare:       0.05,
+			FadeinPercent:  0.1,
+			FittsMs:        45,
+			ShareDecay:     3.2,
+			SliderLeniency: 36,
+			MinTime:        10,
+			SliderPenalty:  0.2,
+			RefTime:        500,
+			VerScale:       150,
+			CurveExp:       0.71,
 		},
 		Reading: ReadingVars{
 			StrainDecay: 0.01,

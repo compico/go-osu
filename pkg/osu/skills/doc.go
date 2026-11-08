@@ -26,10 +26,10 @@
 // stream, using its interval and length. Agility aggregates peaks in aim
 // strain. Precision scales agility using circle size. Accuracy combines
 // stamina with OD and the number of circles through an SS-unranked-score
-// estimate. Reaction estimates how little time is left to decide where to go next:
-// the time an object is visible and the gap after the previous object, minus
-// the movement time (Fitts's law, weighted by the turn angle), averaged over
-// the hardest passages. Reading estimates difficulty from visible-object density,
+// estimate. Reaction estimates how much of the time an object is visible is
+// left to decide where to go once the movement to it, by Fitts's law weighted
+// by the turn angle, has taken its share of the gap since the previous object;
+// it is averaged over the hardest passages. Reading estimates difficulty from visible-object density,
 // repeated angles, movement, and (under Hidden) visibility. Memory scores
 // objects that cannot be inferred from nearby visible objects; ProcessBeatmap
 // currently calculates it for Flashlight maps.
