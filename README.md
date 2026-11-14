@@ -52,6 +52,7 @@ migrations/           goose SQL migrations, embedded via go:embed
 pkg/
   osu/                osu! format parsing (database, beatmap, skills)
   vector2d/           2D vector math used by the skill algorithms
+  go.mod              pkg is a separate Go module (github.com/compico/go-osu/pkg), usable without the rest of go-osu
 frontend/             Vue app source (src, public)
 assets/               embedded binary assets (tray icon)
 config.yml            application configuration
@@ -140,7 +141,7 @@ The `pkg/osu/skills` package contains beatmap difficulty analysis algorithms por
 
 The algorithms compute a set of skill-related metrics for a beatmap: Stamina, Tenacity, Agility, Accuracy, Precision, Memory, Reaction, and other derived values.
 
-The values are checked against the original implementation on real beatmaps. The `.osu` files are not stored in the repository: `make fetch-refs` downloads them (the IDs are listed in `pkg/osu/skills/reference_maps.json`) into the git-ignored `pkg/osu/skills/test_data`, after which `go test ./pkg/osu/skills` and the pre-commit hook run the comparison. CI does the same in the `Reference values` job.
+The values are checked against the original implementation on real beatmaps. The `.osu` files are not stored in the repository: `make fetch-refs` downloads them (the IDs are listed in `pkg/osu/skills/reference_maps.json`) into the git-ignored `pkg/osu/skills/test_data`, after which `cd pkg && go test ./osu/skills` and the pre-commit hook run the comparison. CI does the same in the `Reference values` job.
 
 This is a **port** from another language. The test suite compares output against the original implementation across a large set of beatmaps, and results now match it almost exactly — remaining differences, where they occur, are negligible and come down to implementation details rather than to the methodology itself. The algorithms may still be refined further as edge cases are found.
 
