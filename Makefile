@@ -41,4 +41,4 @@ fetch-refs:
 
 # Same check as the reference job in CI: fails instead of skipping when a map is missing.
 test-reference: fetch-refs
-	REQUIRE_REFERENCE=1 go test ./pkg/osu/skills -run TestSkillsValues_CompareWithReference -count=1 -v
+	cd pkg && REQUIRE_REFERENCE=1 go test ./osu/skills -run TestSkillsValues_CompareWithReference -count=1 -v

@@ -45,13 +45,22 @@ jobs:
             exit 1
           fi
 
+      # pkg is a module of its own (see pkg/go.mod), so ./... of the root module does not include it.
       - name: Vet
-        run: go vet ./...
+        run: |
+          go vet ./...
+          (cd pkg && go vet ./...)
 
       # The reference test skips itself here because there are no .osu files;
       # the reference job below runs it for real.
       - name: Test
-        run: go test ./... -count=1
+        run: |
+          go test ./... -count=1
+          (cd pkg && go test ./... -count=1)
+
+      # The calculation is used from a wasm plugin of Overlay Composer: it has to keep building for wasip1.
+      - name: Build pkg for wasm (wasip1)
+        run: cd pkg && GOOS=wasip1 GOARCH=wasm go build ./...
 
   frontend:
     name: Frontend
@@ -101,4 +110,4 @@ jobs:
         run: make fetch-refs
 
       - name: Compare with the reference values
-        run: REQUIRE_REFERENCE=1 go test ./pkg/osu/skills -run TestSkillsValues_CompareWithReference -count=1 -v
+        run: cd pkg && REQUIRE_REFERENCE=1 go test ./osu/skills -run TestSkillsValues_CompareWithReference -count=1 -v

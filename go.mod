@@ -2,8 +2,13 @@ module github.com/compico/go-osu
 
 go 1.25.7
 
+// pkg — отдельный модуль (его подключают и другие проекты, например wasm-плагин Overlay Composer);
+// здесь он берётся из этого же репозитория.
+replace github.com/compico/go-osu/pkg => ./pkg
+
 require (
 	fyne.io/systray v1.12.2
+	github.com/compico/go-osu/pkg v0.0.0-00010101000000-000000000000
 	github.com/gofiber/contrib/v3/websocket v1.2.2
 	github.com/gofiber/fiber/v3 v3.4.0
 	github.com/jmoiron/sqlx v1.4.0
