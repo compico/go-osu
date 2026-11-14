@@ -28,6 +28,10 @@ import (
 //
 // so the approach rate sets the base and the pattern raises it. A fast rhythm
 // of short movements costs little, a fast rhythm of long jumps costs a lot.
+// An object that comes while the slider before it is still followed needs no
+// jump to the slider's end: only the way beyond the follow circle counts, and
+// the gap is the time between the two heads.
+//
 // A slider's end is not where the player leaves it: SliderLeniency ms (map
 // time) earlier is enough, and that is added to the gap after a slider.
 //
@@ -41,6 +45,10 @@ import (
 // The first object has no previous one: its T is its visible time. Spinners
 // are not targets, but a spinner's end still counts as the end of the previous
 // object.
+
+// reactionFollowRadius is the radius of a slider's follow circle in circle
+// diameters: 2.4 radii.
+const reactionFollowRadius float64 = 1.2
 
 // reactionMaxShare bounds movement/gap for a gap that is 0 or almost.
 const reactionMaxShare float64 = 4
@@ -111,13 +119,19 @@ func (md *MapData) reactionPoints(vars *Vars, hidden bool) []reactionPoint {
 		if i > 0 {
 			prev := &hos[i-1]
 			gap := float64(ho.Time - endTimeOf(prev))
-			if endTimeOf(prev) > prev.Time {
+			from := endPointOf(prev)
+			dist := from.DistanceFrom(ho.Pos) / diameter
+			if gap < 0 && prev.Type.IsHitSlider() {
+				// The object comes while the slider is still being followed: the
+				// cursor stays inside the follow circle, so only the way beyond it
+				// is a movement, and the time between the two heads is what there is.
+				gap = float64(ho.Time - prev.Time)
+				dist = math.Max(0, dist-reactionFollowRadius)
+			} else if endTimeOf(prev) > prev.Time {
 				// A slider can be let go a little before its end; the leniency is
 				// in map time, so the time of the mod's speed is shorter.
 				gap += vars.Reaction.SliderLeniency / modsSpeed(md.Mods)
 			}
-			from := endPointOf(prev)
-			dist := from.DistanceFrom(ho.Pos) / diameter
 
 			sharp := 0.5 // no turn to judge: assume a middling one
 			if i > 1 {

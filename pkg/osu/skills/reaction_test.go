@@ -225,3 +225,37 @@ func TestReactionSkipsSpinners(t *testing.T) {
 		t.Errorf("points = %+v, want the two circles", points)
 	}
 }
+
+// An object that comes while the slider before it is still followed needs no
+// jump: it is inside the follow circle. It must not be read as a jump over the
+// few milliseconds between the slider's end and the object.
+func TestReactionInsideTheFollowCircleIsNoJump(t *testing.T) {
+	at := func(x float64, tm int, typ osu.HitObjectType, end int) osu.HitObject {
+		p := vector2d.Vector2dd{X: x, Y: 200}
+		return osu.HitObject{Pos: p, EndPoint: p, Time: tm, EndTime: end, Type: typ}
+	}
+	last := func(x float64, tm int) float64 {
+		bm := circlesAt()
+		bm.ApproachRate = 9
+		bm.HitObjects = []osu.HitObject{
+			at(100, 1000, osu.HitNormal, 1000),
+			at(100, 1400, osu.HitSlider, 1500),
+			at(x, tm, osu.HitNormal, tm),
+		}
+		md := NewMapData(bm, osu.NM)
+		p := md.reactionPoints(NewVars(), false)
+		return p[len(p)-1].Value
+	}
+
+	// 60 px is within the follow circle (CS4: a diameter is about 73 px), 10 ms
+	// before the slider's end; the same place 10 ms after the end is a jump.
+	inside, after := last(160, 1490), last(160, 1510)
+	if !(inside < after) {
+		t.Errorf("inside the follow circle %v is not below the jump %v", inside, after)
+	}
+	// With no way beyond the follow circle the base is the visible time, with
+	// the slider's penalty only.
+	if inside >= reactionAt(250, NewVars()) {
+		t.Errorf("inside the follow circle: %v, want a low value", inside)
+	}
+}
